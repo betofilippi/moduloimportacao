@@ -123,6 +123,51 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
     setEstimatedProcessingTime('');
   };
 
+  const pollForResult = async (jobId: string, statusEndpoint: string): Promise<any> => {
+    const maxPollingTime = 15 * 60 * 1000; // 15 minutes
+    const pollingInterval = 5000; // 5 seconds
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxPollingTime) {
+      try {
+        const statusResponse = await fetchJSON(statusEndpoint, {
+          method: 'GET',
+          timeout: 10000, // 10 seconds timeout for status check
+        });
+        
+        if (statusResponse.error) {
+          throw new Error(statusResponse.error);
+        }
+        
+        const status = statusResponse.data;
+        
+        if (status.status === 'completed') {
+          return status.result;
+        } else if (status.status === 'failed') {
+          throw new Error(status.error || 'Processing failed');
+        }
+        
+        // Update UI with processing time
+        if (status.elapsedTime) {
+          console.log(`Processing for ${Math.floor(status.elapsedTime / 1000)} seconds...`);
+        }
+        
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, pollingInterval));
+      } catch (error) {
+        console.error('Polling error:', error);
+        // Continue polling unless it's a fatal error
+        if (error instanceof Error && error.message.includes('Failed to fetch')) {
+          await new Promise(resolve => setTimeout(resolve, pollingInterval));
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    throw new Error('Processing timed out after 15 minutes');
+  };
+
   const handleProcess = async () => {
     if (!file || !documentType) {
       toast.error('Por favor, selecione um arquivo e o tipo de documento');
@@ -214,6 +259,13 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
         }
 
         extractResult = extractResponse.data;
+        
+        // Handle asynchronous processing for large files
+        if (extractResult.jobId) {
+          console.log('Large file detected, starting polling for job:', extractResult.jobId);
+          toast.info('Arquivo grande detectado. Processamento em segundo plano iniciado.');
+          extractResult = await pollForResult(extractResult.jobId, extractResult.statusEndpoint);
+        }
         
         // Update processing steps from multi-prompt result
         if (extractResult.multiPrompt) {

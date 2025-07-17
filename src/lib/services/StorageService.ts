@@ -120,6 +120,30 @@ export class StorageService {
   }
 
   /**
+   * Get file size in bytes
+   */
+  static async getFileSize(path: string): Promise<number> {
+    const { data, error } = await supabase.storage
+      .from(this.bucketName)
+      .list(path.split('/').slice(0, -1).join('/'), {
+        limit: 1000
+      });
+    
+    if (error) {
+      throw new Error(`Failed to get file info: ${error.message}`);
+    }
+    
+    const fileName = path.split('/').pop();
+    const fileInfo = data?.find(file => file.name === fileName);
+    
+    if (!fileInfo) {
+      throw new Error(`File not found: ${path}`);
+    }
+    
+    return fileInfo.metadata?.size || 0;
+  }
+
+  /**
    * Delete a file from Storage
    * Note: Delete is disabled by policy for security reasons
    */

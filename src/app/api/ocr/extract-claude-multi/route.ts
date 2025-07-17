@@ -26,6 +26,11 @@ const cleanupExpiredRequests = () => {
 // Run cleanup every 5 minutes
 setInterval(cleanupExpiredRequests, 5 * 60 * 1000);
 
+// Export function to get active request (for status endpoint)
+export function getActiveRequest(requestId: string) {
+  return activeRequests.get(requestId);
+}
+
 // Configure timeout for Vercel Pro (800 seconds)
 export const maxDuration = 800;
 export const dynamic = 'force-dynamic';
@@ -217,8 +222,22 @@ export async function POST(request: NextRequest) {
       userId: user.id
     });
 
+    // For large files, return immediately with job ID and let client poll for status
+    const fileSizeMB = (await StorageService.getFileSize(storagePath)) / (1024 * 1024);
+    
+    if (fileSizeMB > 5) {
+      // Return job ID immediately for large files
+      return NextResponse.json({
+        success: true,
+        jobId: requestId,
+        message: 'Processamento iniciado. Use o jobId para verificar o status.',
+        estimatedTime: `${Math.ceil(fileSizeMB / 2)}-${Math.ceil(fileSizeMB / 2) + 2} minutos`,
+        statusEndpoint: `/api/ocr/extract-claude-multi/status?requestId=${requestId}`
+      });
+    }
+    
     try {
-      // Wait for the processing to complete
+      // For small files, process synchronously
       const result = await processingPromise;
       
       // Remove from active requests after completion

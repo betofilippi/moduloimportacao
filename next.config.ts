@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   
   // Configure timeout for Vercel Pro (800 seconds)
   experimental: {
-    serverComponentsExternalPackages: ['sharp', 'canvas'],
+    // Other experimental features can be added here
   },
   
   // API routes configuration
