@@ -16,11 +16,7 @@ import {
   FileCode,
   Banknote,
   Send,
-  UserCheck,
-  Edit2,
-  Save,
-  X,
-  RefreshCw
+  UserCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,10 +28,10 @@ import {
   ExtractedData 
 } from '../components/BaseViewer';
 import { HeaderSection, HeaderField } from '../components/HeaderSection';
-import { swiftFieldAccessors, getFieldValue, normalizeMonetaryValue } from '../utils/fieldMapping';
+// Removed unused imports: swiftFieldAccessors, getFieldValue, normalizeMonetaryValue
 
 interface SwiftData extends ExtractedData {
-  swiftData?: any;
+  header?: any;
 }
 
 export function SwiftViewer(props: BaseViewerProps) {
@@ -59,7 +55,7 @@ export function SwiftViewer(props: BaseViewerProps) {
     setEditedData
   } = useViewerState<SwiftData>(
     {
-      swiftData: {}
+      header: {}
     },
     props
   );
@@ -67,66 +63,71 @@ export function SwiftViewer(props: BaseViewerProps) {
   const { formatCurrency } = viewerUtils;
 
   // Extract Swift data
-  const swiftData = editedData.swiftData || editedData || {};
+  const swiftData = editedData.header || editedData || {};
 
-  // Define header fields using field accessors
+  // Transform data from English to Portuguese for display
+  const transformedData = {
+    message_type: swiftData.message_type,
+    senders_reference: swiftData.senders_reference,
+    transaction_reference: swiftData.transaction_reference,
+    value_date: swiftData.value_date,
+    currency: swiftData.currency,
+    amount: swiftData.amount,
+    fatura: swiftData.fatura,
+    details_of_charges: swiftData.details_of_charges,
+    ...swiftData // Keep all original data
+  };
+
+  // Define header fields using correct English keys
   const headerFields: HeaderField[] = [
     {
-      key: 'tipo_mensagem',
+      key: 'message_type',
       label: 'Tipo de Mensagem',
       type: 'text',
-      icon: <Banknote className="h-5 w-5 text-muted-foreground" />,
-      accessor: swiftFieldAccessors.tipo_mensagem
+      icon: <Banknote className="h-5 w-5 text-muted-foreground" />
     },
     {
-      key: 'referencia_remetente',
+      key: 'senders_reference',
       label: 'Referência do Remetente',
       type: 'text',
-      icon: <Hash className="h-5 w-5 text-muted-foreground" />,
-      accessor: swiftFieldAccessors.referencia_remetente
+      icon: <Hash className="h-5 w-5 text-muted-foreground" />
     },
     {
-      key: 'referencia_transacao',
+      key: 'transaction_reference',
       label: 'Referência da Transação',
       type: 'text',
-      icon: <Hash className="h-5 w-5 text-muted-foreground" />,
-      accessor: swiftFieldAccessors.referencia_transacao
+      icon: <Hash className="h-5 w-5 text-muted-foreground" />
     },
     {
-      key: 'data_valor',
+      key: 'value_date',
       label: 'Data Valor',
       type: 'date',
-      icon: <Calendar className="h-5 w-5 text-muted-foreground" />,
-      accessor: swiftFieldAccessors.data_valor
+      icon: <Calendar className="h-5 w-5 text-muted-foreground" />
     },
     {
-      key: 'moeda',
+      key: 'currency',
       label: 'Moeda',
       type: 'text',
-      icon: <DollarSign className="h-5 w-5 text-muted-foreground" />,
-      accessor: swiftFieldAccessors.moeda
+      icon: <DollarSign className="h-5 w-5 text-muted-foreground" />
     },
     {
-      key: 'valor',
+      key: 'amount',
       label: 'Valor',
-      type: 'currency',
+      type: 'number',
       icon: <DollarSign className="h-5 w-5 text-muted-foreground" />,
-      accessor: swiftFieldAccessors.valor,
-      format: (value: any) => formatCurrency(value, getFieldValue(swiftData, swiftFieldAccessors.moeda) || 'USD')
+      format: (value: any) => formatCurrency(value, swiftData.currency || 'USD')
     },
     {
-      key: 'numero_fatura',
+      key: 'fatura',
       label: 'Número da Fatura',
       type: 'text',
-      icon: <FileText className="h-5 w-5 text-muted-foreground" />,
-      accessor: swiftFieldAccessors.numero_fatura
+      icon: <FileText className="h-5 w-5 text-muted-foreground" />
     },
     {
-      key: 'detalhes_tarifas',
+      key: 'details_of_charges',
       label: 'Detalhes das Tarifas',
       type: 'text',
       icon: <CreditCard className="h-5 w-5 text-muted-foreground" />,
-      accessor: swiftFieldAccessors.detalhes_tarifas,
       format: (value: string) => {
         if (!value) return 'N/A';
         const labels: Record<string, string> = {
@@ -170,8 +171,8 @@ export function SwiftViewer(props: BaseViewerProps) {
               Resumo SWIFT
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Badge variant="outline">{getFieldValue(swiftData, swiftFieldAccessors.tipo_mensagem) || 'SWIFT'}</Badge>
-              <Badge variant="secondary">{getFieldValue(swiftData, swiftFieldAccessors.moeda) || 'USD'}</Badge>
+              <Badge variant="outline">{transformedData.message_type || 'SWIFT'}</Badge>
+              <Badge variant="secondary">{transformedData.currency || 'USD'}</Badge>
             </div>
           </div>
         </CardHeader>
@@ -179,24 +180,21 @@ export function SwiftViewer(props: BaseViewerProps) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <p className="text-muted-foreground">Referência</p>
-              <p className="font-medium">{getFieldValue(swiftData, swiftFieldAccessors.referencia_remetente) || 'N/A'}</p>
+              <p className="font-medium">{transformedData.senders_reference || 'N/A'}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Data Valor</p>
-              <p className="font-medium">{getFieldValue(swiftData, swiftFieldAccessors.data_valor) || 'N/A'}</p>
+              <p className="font-medium">{transformedData.value_date || 'N/A'}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Valor</p>
               <p className="font-medium text-green-600">
-                {formatCurrency(
-                  getFieldValue(swiftData, swiftFieldAccessors.valor), 
-                  getFieldValue(swiftData, swiftFieldAccessors.moeda)
-                )}
+                {formatCurrency(transformedData.amount, transformedData.currency)}
               </p>
             </div>
             <div>
               <p className="text-muted-foreground">Fatura</p>
-              <p className="font-medium">{getFieldValue(swiftData, swiftFieldAccessors.numero_fatura) || 'N/A'}</p>
+              <p className="font-medium">{transformedData.fatura || 'N/A'}</p>
             </div>
           </div>
         </CardContent>
@@ -213,29 +211,7 @@ export function SwiftViewer(props: BaseViewerProps) {
             Detalhes da Transação SWIFT
           </CardTitle>
           <div className="flex items-center gap-2">
-            <Badge variant="outline">{getFieldValue(swiftData, swiftFieldAccessors.tipo_mensagem) || 'SWIFT'}</Badge>
-            {!readonly && !isEditing && (
-              <Button size="sm" variant="outline" onClick={handleEdit}>
-                <Edit2 className="h-4 w-4 mr-1" />
-                Editar
-              </Button>
-            )}
-            {isEditing && (
-              <>
-                <Button size="sm" variant="outline" onClick={handleReset}>
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                  Resetar
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleCancel}>
-                  <X className="h-4 w-4 mr-1" />
-                  Cancelar
-                </Button>
-                <Button size="sm" onClick={handleSaveClick}>
-                  <Save className="h-4 w-4 mr-1" />
-                  Salvar
-                </Button>
-              </>
-            )}
+            <Badge variant="outline">{transformedData.message_type || 'SWIFT'}</Badge>
           </div>
         </div>
       </CardHeader>
@@ -244,13 +220,16 @@ export function SwiftViewer(props: BaseViewerProps) {
         <HeaderSection
           title="Informações da Transação"
           fields={headerFields}
-          data={swiftData}
+          data={transformedData}
           isEditing={isEditing}
-          onFieldChange={(field, value) => {
+          onEdit={!readonly ? handleEdit : undefined}
+          onSave={handleSaveClick}
+          onCancel={handleCancel}
+          onChange={(field, value) => {
             setEditedData(prev => ({
               ...prev,
-              swiftData: {
-                ...prev.swiftData,
+              header: {
+                ...prev.header,
                 [field]: value
               }
             }));
@@ -258,13 +237,13 @@ export function SwiftViewer(props: BaseViewerProps) {
         />
 
         {/* UETR */}
-        {getFieldValue(swiftData, swiftFieldAccessors.uetr) && (
+        {swiftData.uetr && (
           <div className="border-t pt-4">
             <div className="flex items-start gap-3">
               <FileCode className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">UETR (Unique End-to-end Transaction Reference)</p>
-                <p className="font-mono text-xs">{getFieldValue(swiftData, swiftFieldAccessors.uetr)}</p>
+                <p className="font-mono text-xs">{swiftData.uetr}</p>
               </div>
             </div>
           </div>
@@ -289,22 +268,22 @@ export function SwiftViewer(props: BaseViewerProps) {
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">Nome</p>
                         <p className="font-semibold text-lg">
-                          {getFieldValue(swiftData, swiftFieldAccessors.beneficiario.nome) || 'N/A'}
+                          {swiftData.beneficiary?.name || 'N/A'}
                         </p>
                       </div>
-                      {getFieldValue(swiftData, swiftFieldAccessors.beneficiario.conta) && (
+                      {swiftData.beneficiary?.account && (
                         <div>
                           <p className="text-xs text-muted-foreground uppercase tracking-wider">Conta</p>
                           <p className="font-mono font-medium">
-                            {getFieldValue(swiftData, swiftFieldAccessors.beneficiario.conta)}
+                            {swiftData.beneficiary.account}
                           </p>
                         </div>
                       )}
-                      {getFieldValue(swiftData, swiftFieldAccessors.beneficiario.endereco) && (
+                      {swiftData.beneficiary?.address && (
                         <div>
                           <p className="text-xs text-muted-foreground uppercase tracking-wider">Endereço</p>
                           <p className="text-sm">
-                            {getFieldValue(swiftData, swiftFieldAccessors.beneficiario.endereco)}
+                            {swiftData.beneficiary.address}
                           </p>
                         </div>
                       )}
@@ -317,11 +296,11 @@ export function SwiftViewer(props: BaseViewerProps) {
                       </div>
                       <div>
                         <p className="font-medium">
-                          {getFieldValue(swiftData, swiftFieldAccessors.instituicao_receptora.nome) || 'N/A'}
+                          {swiftData.receiver_institution?.name || 'N/A'}
                         </p>
-                        {getFieldValue(swiftData, swiftFieldAccessors.instituicao_receptora.bic) && (
+                        {swiftData.receiver_institution?.bic && (
                           <p className="text-sm font-mono text-muted-foreground mt-1">
-                            BIC: {formatBIC(getFieldValue(swiftData, swiftFieldAccessors.instituicao_receptora.bic))}
+                            BIC: {formatBIC(swiftData.receiver_institution.bic)}
                           </p>
                         )}
                       </div>
@@ -350,14 +329,14 @@ export function SwiftViewer(props: BaseViewerProps) {
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider">Cliente Ordenante</p>
                         <p className="font-semibold text-lg">
-                          {getFieldValue(swiftData, swiftFieldAccessors.cliente_ordenante.nome) || 'N/A'}
+                          {swiftData.ordering_customer?.name || 'N/A'}
                         </p>
                       </div>
-                      {getFieldValue(swiftData, swiftFieldAccessors.cliente_ordenante.endereco) && (
+                      {swiftData.ordering_customer?.address && (
                         <div>
                           <p className="text-xs text-muted-foreground uppercase tracking-wider">Endereço</p>
                           <p className="text-sm">
-                            {getFieldValue(swiftData, swiftFieldAccessors.cliente_ordenante.endereco)}
+                            {swiftData.ordering_customer.address}
                           </p>
                         </div>
                       )}
@@ -370,16 +349,16 @@ export function SwiftViewer(props: BaseViewerProps) {
                       </div>
                       <div>
                         <p className="font-medium">
-                          {getFieldValue(swiftData, swiftFieldAccessors.instituicao_ordenante.nome) || 'N/A'}
+                          {swiftData.ordering_institution?.name || 'N/A'}
                         </p>
-                        {getFieldValue(swiftData, swiftFieldAccessors.instituicao_ordenante.bic) && (
+                        {swiftData.ordering_institution?.bic && (
                           <p className="text-sm font-mono text-muted-foreground mt-1">
-                            BIC: {formatBIC(getFieldValue(swiftData, swiftFieldAccessors.instituicao_ordenante.bic))}
+                            BIC: {formatBIC(swiftData.ordering_institution.bic)}
                           </p>
                         )}
-                        {getFieldValue(swiftData, swiftFieldAccessors.instituicao_ordenante.endereco) && (
+                        {swiftData.ordering_institution?.address && (
                           <p className="text-sm text-muted-foreground mt-2">
-                            {getFieldValue(swiftData, swiftFieldAccessors.instituicao_ordenante.endereco)}
+                            {swiftData.ordering_institution.address}
                           </p>
                         )}
                       </div>
@@ -392,11 +371,11 @@ export function SwiftViewer(props: BaseViewerProps) {
         </div>
 
         {/* Additional Information */}
-        {getFieldValue(swiftData, swiftFieldAccessors.informacoes_remessa) && (
+        {swiftData.remittance_information && (
           <div className="border-t pt-6">
             <h3 className="font-medium text-lg mb-4">Informações de Remessa</h3>
             <div className="bg-muted/30 rounded-lg p-4 border-l-4 border-primary">
-              <p className="text-sm">{getFieldValue(swiftData, swiftFieldAccessors.informacoes_remessa)}</p>
+              <p className="text-sm">{swiftData.remittance_information}</p>
             </div>
           </div>
         )}

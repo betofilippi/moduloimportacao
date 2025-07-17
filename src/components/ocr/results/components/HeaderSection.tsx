@@ -96,6 +96,7 @@ export function HeaderSection({
       {variant === 'card' && (
         <CardHeader>
           <div className="flex items-center justify-between">
+            
             <CardTitle className="flex items-center gap-2">
               {titleIcon}
               {title}

@@ -35,7 +35,7 @@ export const NOCODB_TABLES = {
   },
 
   // Single Tables
-  SWIFT: "tbl_swift_transactions",
+  SWIFT: "m9w1hyki9w77zd7", 
   NUMERARIO: "tbl_numerario_operations",
 
   // Upload tracking
@@ -237,12 +237,12 @@ export const TABLE_FIELD_MAPPINGS = {
 
   // Swift Fields - Mapeamento para português
   SWIFT: {
-  tipo_mensagem: "message_type",
+ tipo_mensagem: "message_type",
   referencia_remetente: "senders_reference",
   referencia_transacao: "transaction_reference",
   uetr: "uetr",
   codigo_operacao_bancaria: "bank_operation_code",
-  data_valor: "value_date",
+  data_valor: "data_valor",
   moeda: "currency",
   valor: "amount",
   cliente_ordenante: "ordering_customer",
@@ -253,20 +253,20 @@ export const TABLE_FIELD_MAPPINGS = {
   informacoes_remessa: "remittance_information",
   invoiceNumber: "fatura",
   detalhes_tarifas: "details_of_charges",
-  
+
   // Campos aninhados - ordering_customer
   cliente_ordenante_nome: "ordering_customer.name",
   cliente_ordenante_endereco: "ordering_customer.address",
-  
+
   // Campos aninhados - ordering_institution
   instituicao_ordenante_nome: "ordering_institution.name",
   instituicao_ordenante_bic: "ordering_institution.bic",
   instituicao_ordenante_endereco: "ordering_institution.address",
-  
+
   // Campos aninhados - receiver_institution
   instituicao_receptora_nome: "receiver_institution.name",
   instituicao_receptora_bic: "receiver_institution.bic",
-  
+
   // Campos aninhados - beneficiary
   beneficiario_conta: "beneficiary.account",
   beneficiario_nome: "beneficiary.name",
