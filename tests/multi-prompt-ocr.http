@@ -1,0 +1,140 @@
+### Multi-Prompt OCR API Tests
+### Test file for the new multi-prompt OCR processing endpoint
+
+# Base URL for local development
+@baseUrl = http://localhost:3000
+
+### Upload a PDF file first
+# This endpoint uploads a file and returns storage path
+POST {{baseUrl}}/api/ocr/upload
+Content-Type: multipart/form-data
+
+# Replace with actual file path when testing
+file=@/path/to/your/packing-list.pdf
+documentType=packing_list
+
+### Process with single prompt (existing endpoint)
+POST {{baseUrl}}/api/ocr/extract-claude
+Content-Type: application/json
+
+{
+  "storagePath": "ocr-documents/user-id/file-hash.pdf",
+  "fileType": "pdf",
+  "documentType": "packing_list"
+}
+
+### Process with multi-prompt (new endpoint)
+POST {{baseUrl}}/api/ocr/extract-claude-multi
+Content-Type: application/json
+
+{
+  "storagePath": "ocr-documents/user-id/file-hash.pdf",
+  "fileType": "pdf",
+  "documentType": "packing_list"
+}
+
+### Test with unsupported document type (should fail)
+POST {{baseUrl}}/api/ocr/extract-claude-multi
+Content-Type: application/json
+
+{
+  "storagePath": "ocr-documents/user-id/file-hash.pdf",
+  "fileType": "pdf",
+  "documentType": "invoice"
+}
+
+### Test with non-PDF file (should fail)
+POST {{baseUrl}}/api/ocr/extract-claude-multi
+Content-Type: application/json
+
+{
+  "storagePath": "ocr-documents/user-id/file-hash.jpg",
+  "fileType": "jpg",
+  "documentType": "packing_list"
+}
+
+### Test with missing parameters (should fail)
+POST {{baseUrl}}/api/ocr/extract-claude-multi
+Content-Type: application/json
+
+{
+  "fileType": "pdf",
+  "documentType": "packing_list"
+}
+
+###
+# Expected Response Structure for Multi-Prompt Processing:
+# 
+# {
+#   "success": true,
+#   "data": {
+#     "multiPrompt": {
+#       "documentType": "packing_list",
+#       "totalSteps": 4,
+#       "steps": [
+#         {
+#           "step": 1,
+#           "stepName": "Extração de Dados Gerais",
+#           "stepDescription": "Extraindo informações básicas do cabeçalho...",
+#           "result": "{\"invoice\": \"...\", \"consignee\": \"...\"}",
+#           "metadata": {
+#             "tokenUsage": { "input": 100, "output": 50 },
+#             "processingTime": 2000
+#           }
+#         },
+#         // ... more steps
+#       ],
+#       "progressSteps": [
+#         {
+#           "step": 1,
+#           "stepName": "Extração de Dados Gerais",
+#           "stepDescription": "Extraindo informações básicas do cabeçalho...",
+#           "completed": true,
+#           "result": "..."
+#         },
+#         // ... more progress steps
+#       ]
+#     },
+#     "extractedData": {
+#       // Final parsed JSON result from step 4
+#     },
+#     "rawText": "...",
+#     "cleanedText": "...",
+#     "ocrResults": [
+#       {
+#         "page": 1,
+#         "text": "...",
+#         "method": "claude-multi-prompt-step-1",
+#         "confidence": 0.95,
+#         "language": "pt-BR",
+#         "stepName": "Extração de Dados Gerais",
+#         "stepDescription": "..."
+#       },
+#       // ... more OCR results for each step
+#     ],
+#     "metadata": {
+#       "model": "claude-4-sonnet-20250514",
+#       "processingTime": 8000,
+#       "tokenUsage": { "input": 400, "output": 200 },
+#       "multiPrompt": true,
+#       "stepsCompleted": 4
+#     }
+#   }
+# }
+#
+
+### Test Instructions:
+# 1. Start your Next.js development server: npm run dev
+# 2. Replace the storagePath with an actual file path from upload response
+# 3. Replace the file path in the upload request with your test PDF
+# 4. Use an HTTP client that supports .http files (VS Code REST Client, Postman, etc.)
+# 5. Run the tests in order: upload first, then process with multi-prompt
+# 6. Check the console logs for detailed processing information
+# 7. Verify that all 4 steps are completed and results are returned correctly
+
+### Expected Behavior:
+# - Upload should return storagePath for use in subsequent requests
+# - Multi-prompt should show progress through 4 steps for packing_list
+# - Final result should contain containers, header data, and items
+# - Processing time should be longer due to multiple Claude API calls
+# - Token usage should be higher due to multiple prompts
