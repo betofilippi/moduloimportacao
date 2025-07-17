@@ -4,6 +4,7 @@
 
 type FetchOptions = RequestInit & {
   skipAuthCheck?: boolean;
+  timeout?: number;
 };
 
 /**
@@ -11,11 +12,23 @@ type FetchOptions = RequestInit & {
  */
 export async function authFetch(url: string, options?: FetchOptions): Promise<Response> {
   try {
+    // Create timeout controller if timeout is specified
+    const controller = new AbortController();
+    const timeoutId = options?.timeout ? setTimeout(() => {
+      controller.abort();
+    }, options.timeout) : null;
+
     // Make the request
     const response = await fetch(url, {
       ...options,
       credentials: options?.credentials || 'include',
+      signal: options?.signal || controller.signal,
     });
+
+    // Clear timeout if request completed
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
 
     // Check for authentication errors
     if (response.status === 401 && !options?.skipAuthCheck) {

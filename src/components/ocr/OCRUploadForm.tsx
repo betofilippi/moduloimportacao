@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -76,10 +76,36 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
   const [useMultiPrompt, setUseMultiPrompt] = useState(false);
   const [processingSteps, setProcessingSteps] = useState<ProcessingStep[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
+  const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
+  const [estimatedProcessingTime, setEstimatedProcessingTime] = useState<string>('');
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+
+  // Update elapsed time every second during processing
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isProcessing && processingStartTime) {
+      interval = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - processingStartTime) / 1000));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isProcessing, processingStartTime]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
-      setFile(acceptedFiles[0]);
+      const droppedFile = acceptedFiles[0];
+      setFile(droppedFile);
+      
+      // Estimate processing time based on file size
+      const fileSizeMB = droppedFile.size / (1024 * 1024);
+      if (fileSizeMB > 5) {
+        const estimatedMinutes = Math.ceil(fileSizeMB / 2); // Rough estimate: 2MB per minute
+        setEstimatedProcessingTime(`Tempo estimado: ${estimatedMinutes}-${estimatedMinutes + 2} minutos`);
+      } else {
+        setEstimatedProcessingTime('Tempo estimado: 30-60 segundos');
+      }
     }
   }, []);
 
@@ -94,6 +120,7 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
 
   const handleRemoveFile = () => {
     setFile(null);
+    setEstimatedProcessingTime('');
   };
 
   const handleProcess = async () => {
@@ -105,6 +132,7 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
     setIsProcessing(true);
     setProcessingSteps([]);
     setCurrentStep(0);
+    setProcessingStartTime(Date.now());
 
     try {
       // 1. Upload file
@@ -178,6 +206,7 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
             fileType: (uploadResult as any).data.fileType,
             documentType: documentType,
           }),
+          timeout: 850000, // 850 seconds (50 seconds buffer from Vercel Pro 800s limit)
         });
 
         if (extractResponse.error) {
@@ -237,6 +266,7 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
       toast.error(error instanceof Error ? error.message : 'Erro ao processar documento');
     } finally {
       setIsProcessing(false);
+      setProcessingStartTime(null);
     }
   };
 
@@ -277,6 +307,11 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
                 <p className="text-sm text-muted-foreground">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
+                {estimatedProcessingTime && (
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                    {estimatedProcessingTime}
+                  </p>
+                )}
               </div>
               {!isProcessing && (
                 <Button
@@ -306,6 +341,27 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
           )}
         </div>
 
+        {/* Show warning for large files */}
+        {file && (file.size / 1024 / 1024) > 5 && !isProcessing && (
+          <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-600 dark:text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="text-sm">
+                <p className="font-medium text-yellow-800 dark:text-yellow-200">
+                  Arquivo grande detectado
+                </p>
+                <p className="text-yellow-700 dark:text-yellow-300">
+                  Este arquivo pode levar vários minutos para processar. Por favor, não feche esta página durante o processamento.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Show processing progress for multi-prompt */}
         {isProcessing && useMultiPrompt && processingSteps.length > 0 && (
           <ProcessingProgress
@@ -313,6 +369,13 @@ export function OCRUploadForm({ onProcessComplete }: OCRUploadFormProps) {
             currentStep={currentStep}
             totalSteps={processingSteps.length}
           />
+        )}
+
+        {/* Show processing time indicator */}
+        {isProcessing && processingStartTime && (
+          <div className="text-sm text-muted-foreground text-center">
+            Processando há {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')} minutos...
+          </div>
         )}
 
         <Button

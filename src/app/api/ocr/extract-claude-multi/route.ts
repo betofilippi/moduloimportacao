@@ -3,6 +3,32 @@ import { extractDataWithMultiplePrompts } from '@/services/ocr/claudePDF';
 import { StorageService } from '@/lib/services/StorageService';
 import { getAuthenticatedUser } from '@/lib/supabase-server';
 import { MultiPromptDocumentType } from '@/services/ocr/multiPromptTypes';
+import { createHash } from 'crypto';
+
+// In-memory cache for tracking active requests
+const activeRequests = new Map<string, {
+  promise: Promise<unknown>;
+  timestamp: number;
+  userId: string;
+}>();
+
+// Clean up expired requests (older than 15 minutes)
+const CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 minutes
+const cleanupExpiredRequests = () => {
+  const now = Date.now();
+  for (const [key, value] of activeRequests.entries()) {
+    if (now - value.timestamp > CLEANUP_INTERVAL) {
+      activeRequests.delete(key);
+    }
+  }
+};
+
+// Run cleanup every 5 minutes
+setInterval(cleanupExpiredRequests, 5 * 60 * 1000);
+
+// Configure timeout for Vercel Pro (800 seconds)
+export const maxDuration = 800;
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,6 +61,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create a unique request ID based on user, storage path, and document type
+    const requestId = createHash('md5')
+      .update(`${user.id}-${storagePath}-${documentType}`)
+      .digest('hex');
+
+    // Check if this request is already being processed
+    const existingRequest = activeRequests.get(requestId);
+    if (existingRequest) {
+      console.log(`Request ${requestId} already in progress, returning existing result`);
+      try {
+        const result = await existingRequest.promise;
+        return NextResponse.json(result);
+      } catch (error) {
+        // If the existing request failed, remove it and continue with new processing
+        activeRequests.delete(requestId);
+        console.log(`Existing request ${requestId} failed, proceeding with new request`);
+      }
+    }
+
     // Validate file type - Claude only processes PDFs directly
     if (fileType !== '.pdf') {
       return NextResponse.json(
@@ -58,110 +103,133 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`Processing PDF with Claude multi-prompt for user ${user.id}, document type: ${documentType}`);
+    console.log(`Processing PDF with Claude multi-prompt for user ${user.id}, document type: ${documentType}, request ID: ${requestId}`);
     
-    // Download file from Supabase Storage
-    const fileBuffer = await StorageService.downloadFile(storagePath);
-    
-    // Track progress steps
-    const progressSteps: Array<{
-      step: number;
-      stepName: string;
-      stepDescription: string;
-      completed: boolean;
-      result?: string;
-    }> = [];
-
-    // Progress callback function
-    const onProgress = (step: number, total: number, stepName: string, stepDescription: string) => {
-      console.log(`Progress: Step ${step}/${total} - ${stepName}: ${stepDescription}`);
+    // Create the processing promise
+    const processingPromise = (async () => {
+      // Download file from Supabase Storage
+      const fileBuffer = await StorageService.downloadFile(storagePath);
       
-      // Mark current step as in progress
-      const existingStep = progressSteps.find(p => p.step === step);
-      if (!existingStep) {
-        progressSteps.push({
-          step,
-          stepName,
-          stepDescription,
-          completed: false
-        });
-      }
-    };
-    
-    // Process PDF with multiple prompts
-    const multiPromptResult = await extractDataWithMultiplePrompts(
-      fileBuffer, 
-      documentType as MultiPromptDocumentType,
-      onProgress
-    );
-    
-    // Update progress steps with results
-    multiPromptResult.steps.forEach(stepResult => {
-      const progressStep = progressSteps.find(p => p.step === stepResult.step);
-      if (progressStep) {
-        progressStep.completed = true;
-        progressStep.result = stepResult.result;
-      } else {
-        progressSteps.push({
-          step: stepResult.step,
-          stepName: stepResult.stepName,
-          stepDescription: stepResult.stepDescription,
-          completed: true,
-          result: stepResult.result
-        });
-      }
+      // Track progress steps
+      const progressSteps: Array<{
+        step: number;
+        stepName: string;
+        stepDescription: string;
+        completed: boolean;
+        result?: string;
+      }> = [];
+
+      // Progress callback function
+      const onProgress = (step: number, total: number, stepName: string, stepDescription: string) => {
+        console.log(`Progress: Step ${step}/${total} - ${stepName}: ${stepDescription}`);
+        
+        // Mark current step as in progress
+        const existingStep = progressSteps.find(p => p.step === step);
+        if (!existingStep) {
+          progressSteps.push({
+            step,
+            stepName,
+            stepDescription,
+            completed: false
+          });
+        }
+      };
+      
+      // Process PDF with multiple prompts
+      const multiPromptResult = await extractDataWithMultiplePrompts(
+        fileBuffer, 
+        documentType as MultiPromptDocumentType,
+        onProgress
+      );
+
+      // Update progress steps with results
+      multiPromptResult.steps.forEach(stepResult => {
+        const progressStep = progressSteps.find(p => p.step === stepResult.step);
+        if (progressStep) {
+          progressStep.completed = true;
+          progressStep.result = stepResult.result;
+        } else {
+          progressSteps.push({
+            step: stepResult.step,
+            stepName: stepResult.stepName,
+            stepDescription: stepResult.stepDescription,
+            completed: true,
+            result: stepResult.result
+          });
+        }
+      });
+
+      // Format response to match existing API structure but with multi-prompt data
+      return {
+        success: true,
+        data: {
+          // Multi-prompt specific data
+          multiPrompt: {
+            documentType: multiPromptResult.documentType,
+            totalSteps: multiPromptResult.totalSteps,
+            steps: multiPromptResult.steps,
+            progressSteps: progressSteps.sort((a, b) => a.step - b.step),
+          },
+          
+          // New structured data from each step
+          structuredResult: multiPromptResult.finalResult.structuredResult,
+          
+          // Final extracted data (backward compatibility)
+          extractedData: multiPromptResult.finalResult.extractedData,
+          rawText: multiPromptResult.finalResult.rawText,
+          
+          // For compatibility with existing frontend
+          cleanedText: multiPromptResult.finalResult.rawText,
+          
+          // OCR metadata (adapted for multi-prompt)
+          ocrResults: multiPromptResult.steps.map((step, index) => ({
+            page: index + 1,
+            text: step.result,
+            method: `claude-multi-prompt-step-${step.step}`,
+            confidence: 0.95,
+            language: 'pt-BR',
+            stepName: step.stepName,
+            stepDescription: step.stepDescription,
+          })),
+          
+          // Document metadata
+          totalPages: 1, // Will be calculated if needed
+          storagePath,
+          documentType,
+          
+          // Processing metadata
+          metadata: {
+            model: 'claude-4-sonnet-20250514',
+            processingTime: multiPromptResult.metadata.totalProcessingTime,
+            tokenUsage: multiPromptResult.metadata.totalTokenUsage,
+            multiPrompt: true,
+            stepsCompleted: multiPromptResult.totalSteps,
+            requestId,
+          },
+        },
+      };
+    })();
+
+    // Store the processing promise in the active requests map
+    activeRequests.set(requestId, {
+      promise: processingPromise,
+      timestamp: Date.now(),
+      userId: user.id
     });
 
-    // Format response to match existing API structure but with multi-prompt data
-    const response = {
-      success: true,
-      data: {
-        // Multi-prompt specific data
-        multiPrompt: {
-          documentType: multiPromptResult.documentType,
-          totalSteps: multiPromptResult.totalSteps,
-          steps: multiPromptResult.steps,
-          progressSteps: progressSteps.sort((a, b) => a.step - b.step),
-        },
-        
-        // New structured data from each step
-        structuredResult: multiPromptResult.finalResult.structuredResult,
-        
-        // Final extracted data (backward compatibility)
-        extractedData: multiPromptResult.finalResult.extractedData,
-        rawText: multiPromptResult.finalResult.rawText,
-        
-        // For compatibility with existing frontend
-        cleanedText: multiPromptResult.finalResult.rawText,
-        
-        // OCR metadata (adapted for multi-prompt)
-        ocrResults: multiPromptResult.steps.map((step, index) => ({
-          page: index + 1,
-          text: step.result,
-          method: `claude-multi-prompt-step-${step.step}`,
-          confidence: 0.95,
-          language: 'pt-BR',
-          stepName: step.stepName,
-          stepDescription: step.stepDescription,
-        })),
-        
-        // Document metadata
-        totalPages: 1, // Will be calculated if needed
-        storagePath,
-        documentType,
-        
-        // Processing metadata
-        metadata: {
-          model: 'claude-4-sonnet-20250514',
-          processingTime: multiPromptResult.metadata.totalProcessingTime,
-          tokenUsage: multiPromptResult.metadata.totalTokenUsage,
-          multiPrompt: true,
-          stepsCompleted: multiPromptResult.totalSteps,
-        },
-      },
-    };
-
-    return NextResponse.json(response);
+    try {
+      // Wait for the processing to complete
+      const result = await processingPromise;
+      
+      // Remove from active requests after completion
+      activeRequests.delete(requestId);
+      
+      return NextResponse.json(result);
+    } catch (error) {
+      // Remove from active requests if processing failed
+      activeRequests.delete(requestId);
+      throw error;
+    }
   } catch (error) {
     console.error('Claude multi-prompt OCR extraction error:', error);
     

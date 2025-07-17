@@ -12,6 +12,26 @@ const nextConfig: NextConfig = {
   
   serverExternalPackages: ['sharp', 'canvas'],
   eslint: { ignoreDuringBuilds: true },
+  
+  // Configure timeout for Vercel Pro (800 seconds)
+  experimental: {
+    serverComponentsExternalPackages: ['sharp', 'canvas'],
+  },
+  
+  // API routes configuration
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
