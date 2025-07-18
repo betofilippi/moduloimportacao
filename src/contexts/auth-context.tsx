@@ -11,9 +11,9 @@ import {
   signOut,
   resetPassword,
   updatePassword,
-  onAuthStateChange,
-  refreshSession
+  onAuthStateChange
 } from '@/lib/auth'
+import { sessionManager } from '@/lib/sessionManager'
 
 interface AuthContextType {
   user: any | null
@@ -48,21 +48,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  // Session refresh interval
-  const startSessionRefresh = useCallback(() => {
-    const interval = setInterval(async () => {
-      const result = await refreshSession()
-      if (!result.success) {
-        console.error('Failed to refresh session:', result.error)
-        clearInterval(interval)
-        
-        // Session expired or invalid - redirect to login
-        setUser(null)
-        router.push('/auth/login?expired=true')
-      }
-    }, 10 * 60 * 1000) // Refresh every 10 minutes
-    
-    return () => clearInterval(interval)
+  // Handle session expiration
+  const handleSessionExpired = useCallback(() => {
+    setUser(null)
+    sessionManager.stopAutoRefresh()
+    router.push('/auth/login?expired=true')
   }, [router])
 
   // Initialize auth state
@@ -72,9 +62,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const currentUser = await getCurrentUser()
         setUser(currentUser)
         
-        // If we have a user, start refresh interval
+        // If we have a user, start auto refresh
         if (currentUser) {
-          startSessionRefresh()
+          sessionManager.startAutoRefresh(10) // 10 minutes
         }
       } catch (error) {
         console.error('Error initializing auth:', error)
@@ -85,7 +75,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     initAuth()
-  }, [startSessionRefresh])
+  }, [])
   
   // Listen for auth state changes
   useEffect(() => {
@@ -95,14 +85,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       // Start or stop refresh based on auth state
       if (authUser) {
-        startSessionRefresh()
+        sessionManager.startAutoRefresh(10)
+      } else {
+        sessionManager.stopAutoRefresh()
       }
     })
 
     return () => {
       data.subscription.unsubscribe()
+      sessionManager.stopAutoRefresh()
     }
-  }, [startSessionRefresh])
+  }, [])
 
   // Auth actions
   const handleSignIn = async (credentials: SignInCredentials): Promise<any> => {
@@ -164,6 +157,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!user) return
     
     try {
+      // First check session validity
+      const { valid } = await sessionManager.checkSession()
+      if (!valid) {
+        handleSessionExpired()
+        return
+      }
+      
       const currentUser = await getCurrentUser()
       setUser(currentUser)
     } catch (error) {

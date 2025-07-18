@@ -1,10 +1,11 @@
 import { useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { sessionManager } from '@/lib/sessionManager';
 
 /**
  * Hook that monitors session validity and redirects to login when expired
+ * Now uses centralized sessionManager to prevent multiple refresh requests
  */
 export function useSessionMonitor() {
   const router = useRouter();
@@ -14,10 +15,9 @@ export function useSessionMonitor() {
     if (!user) return;
 
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { data: { session }, error } = await supabase.auth.getSession();
+      const { valid } = await sessionManager.checkSession();
 
-      if (error || !session) {
+      if (!valid) {
         console.log('Session expired or invalid, redirecting to login');
         // Sign out and redirect
         await signOut();
@@ -31,18 +31,20 @@ export function useSessionMonitor() {
   useEffect(() => {
     if (!user) return;
 
-    // Check session immediately
-    checkSession();
-
-    // Check session every 5 minutes
-    const interval = setInterval(checkSession, 5 * 60 * 1000);
-
-    // Also check on window focus
-    const handleFocus = () => checkSession();
+    // Only check on window focus, not on interval
+    // The sessionManager already handles periodic refreshes
+    const handleFocus = () => {
+      // Debounce focus checks
+      const timeSinceLastCheck = Date.now() - (window as any).lastFocusCheck || 0;
+      if (timeSinceLastCheck > 30000) { // 30 seconds minimum between focus checks
+        (window as any).lastFocusCheck = Date.now();
+        checkSession();
+      }
+    };
+    
     window.addEventListener('focus', handleFocus);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
   }, [user, checkSession]);
