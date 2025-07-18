@@ -9,6 +9,7 @@ import { ProformaInvoiceViewer } from './results/viewers/ProformaInvoiceViewer';
 import { SwiftViewer } from './results/viewers/SwiftViewer';
 import { DIViewer } from './results/viewers/DIViewer';
 import { NumerarioViewer } from './results/viewers/NumerarioViewer';
+import { NotaFiscalViewer } from './results/viewers/NotaFiscalViewer';
 
 interface OCRResultsViewerProps {
   results: {
@@ -98,6 +99,17 @@ export function OCRResultsViewer({ results, variant = 'summary', onSave }: OCRRe
   if (variant === 'summary' && documentType === 'numerario') {
     console.log('Rendering NumerarioViewer summary');
     return <NumerarioViewer data={results?.ocr?.data} results={results} variant="summary" onSave={onSave} onSaveToDatabase={onSave} />;
+  }
+
+  // Se for Nota Fiscal
+  if (variant === 'detailed' && documentType === 'nota_fiscal') {
+    console.log('Rendering NotaFiscalViewer detailed');
+    return <NotaFiscalViewer data={results?.ocr?.data} results={results} variant="detailed" onSave={onSave} onSaveToDatabase={onSave} />;
+  }
+  
+  if (variant === 'summary' && documentType === 'nota_fiscal') {
+    console.log('Rendering NotaFiscalViewer summary');
+    return <NotaFiscalViewer data={results?.ocr?.data} results={results} variant="summary" onSave={onSave} onSaveToDatabase={onSave} />;
   }
   
   // Fallback: Se temos extractedData como array ou multiPrompt, provavelmente é packing list

@@ -1,7 +1,12 @@
-PROMPT ! - HEADER DA NOTA FISCAL >>>>
+import { PromptStep } from '../base/types';
 
-
-Extraia os dados gerais desta Nota Fiscal Eletrônica e retorne em formato JSON estruturado. Mantenha os valores exatos como aparecem no documento.
+// Multi-step prompts for Nota Fiscal processing
+export const notaFiscalSteps: PromptStep[] = [
+  {
+    step: 1,
+    name: "Header",
+    description: "Extraindo informações gerais da Nota Fiscal Eletrônica",
+    prompt: `Extraia os dados gerais desta Nota Fiscal Eletrônica e retorne em formato JSON estruturado. Mantenha os valores exatos como aparecem no documento.
 
 CAMPOS OBRIGATÓRIOS:
 
@@ -49,7 +54,7 @@ CAMPOS OBRIGATÓRIOS:
 **INFORMAÇÕES ADICIONAIS:**
 - informacoes_complementares
 - informacoes_fisco
- -di_number 
+- di_number 
 
 Exemplo de saída esperada:
 {
@@ -83,20 +88,20 @@ Exemplo de saída esperada:
   "peso_bruto": "11.184,000",
   "peso_liquido": "10.224,000",
   "informacoes_complementares": "NFe Ref.: série:1 número:3621...",
-  "informacoes_fisco": "PROCESSO NXT 25-005, DI 25/0497271-6..."
-"di_number": (numero da DI, que pode ser encontrado nas informacoes complementares)
+  "informacoes_fisco": "PROCESSO NXT 25-005, DI 25/0497271-6...",
+  "di_number": "(numero da DI, que pode ser encontrado nas informacoes complementares)"
 }
-
-
 
 Localize a invoice_number como numero da Fatura, nas informacoes complementares. Se não houver invoice_number no documento, use {{472.di_pertence_a_invoice}}
 
-Retorne APENAS o JSON, sem explicações ou texto adicional e sem sequer a indicação de que seja um json.
-
-
-PROMPT 2 ITENS DA NOTA FISCAL >>>>>
-
-Extraia APENAS os dados dos produtos/itens desta Nota Fiscal Eletrônica e retorne em formato JSON estruturado. Mantenha os valores exatos como aparecem no documento.
+Retorne APENAS o JSON, sem explicações ou texto adicional e sem sequer a indicação de que seja um json.`,
+    expectsInput: false
+  },
+  {
+    step: 2,
+    name: "Items",
+    description: "Extraindo todos os produtos/itens da Nota Fiscal",
+    prompt: `Extraia APENAS os dados dos produtos/itens desta Nota Fiscal Eletrônica e retorne em formato JSON estruturado. Mantenha os valores exatos como aparecem no documento.
 
 CAMPOS OBRIGATÓRIOS para cada produto:
 - invoice_number
@@ -113,7 +118,7 @@ CAMPOS OBRIGATÓRIOS para cada produto:
 - aliquota_icms
 - valor_ipi_produto
 - aliquota_ipi
--reference
+- reference
 
 Exemplo de saída esperada:
 [
@@ -131,7 +136,8 @@ Exemplo de saída esperada:
     "valor_icms_produto": "13.105,38",
     "aliquota_icms": "4,00",
     "valor_ipi_produto": "29.487,10",
-    "aliquota_ipi": "9,00"
+    "aliquota_ipi": "9,00",
+    "reference": "Y1"
   },
   {
     "invoice_number": "000.003.622",
@@ -147,8 +153,8 @@ Exemplo de saída esperada:
     "valor_icms_produto": "2.757,44",
     "aliquota_icms": "4,00",
     "valor_ipi_produto": "6.204,24",
-    "aliquota_ipi": "9,00"
-    "reference": "Y1"
+    "aliquota_ipi": "9,00",
+    "reference": "YZL"
   }
 ]
 
@@ -156,4 +162,22 @@ O campo reference é o código referenciador do produto que geralmente está na 
 
 Localize a invoice_number como numero da Fatura, nas informacoes complementares.
 
-Retorne APENAS o array JSON dos produtos, sem explicações ou texto adicional e sem sequer a indicação de que seja um json.
+Retorne APENAS o array JSON dos produtos, sem explicações ou texto adicional e sem sequer a indicação de que seja um json.`,
+    expectsInput: true
+  }
+];
+
+// Single prompt for simple extraction (fallback)
+export const notaFiscalPrompt = `
+Extraia os dados completos desta Nota Fiscal Eletrônica incluindo header e itens.
+
+Retorne em formato JSON com a seguinte estrutura:
+{
+  "header": {
+    // Dados do cabeçalho da NF-e
+  },
+  "items": [
+    // Array de produtos/itens
+  ]
+}
+`;

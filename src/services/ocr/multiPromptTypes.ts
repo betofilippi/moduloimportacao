@@ -4,7 +4,7 @@
  */
 
 // Document types supported by multi-prompt processing
-export type MultiPromptDocumentType = 'packing_list' | 'commercial_invoice' | 'proforma_invoice' | 'swift' | 'di' | 'numerario';
+export type MultiPromptDocumentType = 'packing_list' | 'commercial_invoice' | 'proforma_invoice' | 'swift' | 'di' | 'numerario' | 'nota_fiscal';
 
 // Interface for multi-prompt processing result
 export interface MultiPromptResult {

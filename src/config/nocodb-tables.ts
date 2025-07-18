@@ -38,6 +38,12 @@ export const NOCODB_TABLES = {
   SWIFT: "m9w1hyki9w77zd7", 
   NUMERARIO: "m072re89i8a8nco",
 
+  // Nota Fiscal Tables
+  NOTA_FISCAL: {
+    HEADERS: "mby8zu4qlbxe441", // Main NF-e information
+    ITEMS: "m62dvz7fghrgbes", // Product items
+  },
+
   // Upload tracking
   DOCUMENT_UPLOADS: "m6vjb2ircsf2kry", // Track all uploaded files
 
@@ -299,6 +305,61 @@ export const TABLE_FIELD_MAPPINGS = {
     criado_por: "created_by",
     atualizado_por: "updated_by"
   },
+
+  // Nota Fiscal Header Fields - Mapeamento banco para OCR
+  NOTA_FISCAL_HEADER: {
+    invoiceNumber: "invoice_number",
+    numeroNF: "numero_nf",
+    serie: "serie",
+    dataEmissao: "data_emissao",
+    dataSaida: "data_saida",
+    horaSaida: "hora_saida",
+    chaveAcesso: "chave_acesso",
+    naturezaOperacao: "natureza_operacao",
+    protocoloAutorizacao: "protocolo_autorizacao",
+    urlDocument: "url_document",
+    mimetype: "mimetype",
+    title: "title",
+    size: "size",
+    emitenteRazaoSocial: "emitente_razao_social",
+    destinatarioRazaoSocial: "destinatario_razao_social",
+    valorTotalProdutos: "valor_total_produtos",
+    valorTotalNota: "valor_total_nota",
+    baseCalculoIcms: "base_calculo_icms",
+    valorIcms: "valor_icms",
+    valorTotalIpi: "valor_total_ipi",
+    valorFrete: "valor_frete",
+    valorSeguro: "valor_seguro",
+    desconto: "desconto",
+    outrasDespesas: "outras_despesas",
+    fretePorConta: "frete_por_conta",
+    quantidadeVolumes: "quantidade_volumes",
+    especieVolumes: "especie_volumes",
+    pesoBruto: "peso_bruto",
+    pesoLiquido: "peso_liquido",
+    informacoesComplementares: "informacoes_complementares",
+    informacoesFisco: "informacoes_fisco",
+    diNumber: "di_number"
+  },
+
+  // Nota Fiscal Item Fields - Mapeamento banco para OCR
+  NOTA_FISCAL_ITEM: {
+    invoiceNumber: "invoice_number",
+    codigoProduto: "codigo_produto",
+    descricaoProduto: "descricao_produto",
+    ncmSh: "ncm_sh",
+    cfop: "cfop",
+    unidade: "unidade",
+    quantidade: "quantidade",
+    valorUnitario: "valor_unitario",
+    valorTotalProduto: "valor_total_produto",
+    baseIcms: "base_icms",
+    valorIcmsProduto: "valor_icms_produto",
+    aliquotaIcms: "aliquota_icms",
+    valorIpiProduto: "valor_ipi_produto",
+    aliquotaIpi: "aliquota_ipi",
+    reference: "reference"
+  },
 } as const;
 
 /**
@@ -317,12 +378,14 @@ export function getTableId(
     | "DI"
     | "COMMERCIAL_INVOICE"
     | "PACKING_LIST"
-    | "PROFORMA_INVOICE" => {
+    | "PROFORMA_INVOICE"
+    | "NOTA_FISCAL" => {
     return (
       type === "DI" ||
       type === "COMMERCIAL_INVOICE" ||
       type === "PACKING_LIST" ||
-      type === "PROFORMA_INVOICE"
+      type === "PROFORMA_INVOICE" ||
+      type === "NOTA_FISCAL"
     );
   };
 
@@ -338,7 +401,8 @@ export function getTableId(
     } else if (
       (upperType === "COMMERCIAL_INVOICE" ||
         upperType === "PACKING_LIST" ||
-        upperType === "PROFORMA_INVOICE") &&
+        upperType === "PROFORMA_INVOICE" ||
+        upperType === "NOTA_FISCAL") &&
       (tableType === "HEADERS" || tableType === "ITEMS")
     ) {
       return tables[tableType as keyof typeof tables];

@@ -18,6 +18,7 @@ import { PackingListProcessingResult } from '@/services/documents/packing-list/t
 import { ProformaInvoiceProcessingResult } from '@/services/documents/proforma-invoice/types';
 import { SwiftData } from '@/services/documents/swift/types';
 import { NumerarioProcessingResult } from '@/services/documents/numerario/types';
+import { NotaFiscalProcessingResult } from '@/services/documents/nota-fiscal/types';
 import { da } from 'date-fns/locale';
 
 export interface SaveResult {
@@ -78,6 +79,10 @@ export class DocumentSaveService {
           
         case 'numerario':
           resetResult = await this.resetNumerario(fileHash);
+          break;
+          
+        case 'nota_fiscal':
+          resetResult = await this.resetNotaFiscal(fileHash);
           break;
           
         default:
@@ -164,6 +169,16 @@ export class DocumentSaveService {
   private async resetNumerario(fileHash: string): Promise<SaveResult> {
     // Numerario only has single table
     await this.deleteRecords(NOCODB_TABLES.NUMERARIO, fileHash);
+    
+    return { success: true };
+  }
+
+  private async resetNotaFiscal(fileHash: string): Promise<SaveResult> {
+    // Delete items first
+    await this.deleteRecords(NOCODB_TABLES.NOTA_FISCAL.ITEMS, fileHash);
+    
+    // Delete header
+    await this.deleteRecords(NOCODB_TABLES.NOTA_FISCAL.HEADERS, fileHash);
     
     return { success: true };
   }
@@ -826,6 +841,8 @@ console.log('depois de preparar',preparedData);
         return this.saveSwift(data as SwiftData, options);
       case 'numerario':
         return this.saveNumerario(data as NumerarioProcessingResult, options);
+      case 'notafiscal':
+        return this.saveNotaFiscal(data as NotaFiscalProcessingResult, options);
       default:
         return {
           success: false,
@@ -1452,6 +1469,187 @@ console.log('depois de preparar',preparedData);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Erro ao atualizar status do documento'
+      };
+    }
+  }
+
+  /**
+   * Save Nota Fiscal document
+   */
+  async saveNotaFiscal(data: NotaFiscalProcessingResult, options: SaveOptions = {}): Promise<SaveResult> {
+    try {
+      const { userId = 'system' } = options;
+      const timestamp = new Date().toISOString();
+
+      console.log('🔵 Saving Nota Fiscal - data:', data);
+
+      // Prepare header data
+      const headerData = {
+        ...data.header,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        createdBy: userId,
+      };
+
+      // Transform to NocoDB format
+      const transformedHeader = transformToNocoDBFormat(
+        headerData,
+        TABLE_FIELD_MAPPINGS.NOTA_FISCAL_HEADER
+      );
+      
+      // Add file hash
+      if (options.fileHash) {
+        transformedHeader.hash_arquivo_origem = options.fileHash;
+      }
+
+      // Save header
+      const savedHeader = await this.nocodb.create(
+        NOCODB_TABLES.NOTA_FISCAL.HEADERS,
+        transformedHeader
+      );
+
+      console.log('✅ Saved Nota Fiscal header:', savedHeader);
+
+      const invoiceNumber = savedHeader.invoiceNumber || savedHeader.numeroNF;
+      const chaveAcesso = savedHeader.chaveAcesso || data.header.chave_acesso || '';
+
+      // Save items
+      const savedItems = [];
+      if (data.items && data.items.length > 0) {
+        for (const item of data.items) {
+          const itemData = {
+            ...item,
+            invoiceNumber: invoiceNumber,
+            
+          };
+
+          const transformedItem = transformToNocoDBFormat(
+            itemData,
+            TABLE_FIELD_MAPPINGS.NOTA_FISCAL_ITEM
+          );
+          
+          transformedItem.chaveAcesso = chaveAcesso;
+          // Add file hash
+          if (options.fileHash) {
+            transformedItem.hash_arquivo_origem = options.fileHash;
+          }
+
+          const savedItem = await this.nocodb.create(
+            NOCODB_TABLES.NOTA_FISCAL.ITEMS,
+            transformedItem
+          );
+          savedItems.push(savedItem);
+        }
+      }
+
+      console.log('✅ Saved Nota Fiscal items:', savedItems.length);
+
+      return {
+        success: true,
+        documentId: invoiceNumber,
+        details: {
+          headers: savedHeader,
+          items: savedItems,
+        },
+      };
+    } catch (error) {
+      console.error('❌ Error saving Nota Fiscal:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao salvar Nota Fiscal',
+      };
+    }
+  }
+
+  /**
+   * Update Nota Fiscal document
+   */
+  async updateNotaFiscal(data: NotaFiscalProcessingResult, fileHash: string): Promise<SaveResult> {
+    try {
+      console.log('🔵 Updating Nota Fiscal - data:', data);
+
+      // Find existing header by hash
+      const headers = await this.nocodb.find(NOCODB_TABLES.NOTA_FISCAL.HEADERS, {
+        where: `(hash_arquivo_origem,eq,${fileHash})`,
+        limit: 1
+      });
+      
+      if (headers.list.length === 0) {
+        return { success: false, error: 'Nota Fiscal não encontrada para atualização' };
+      }
+      
+      const headerId = headers.list[0].Id;
+      const invoiceNumber = headers.list[0].invoiceNumber || headers.list[0].numeroNF;
+      
+      // Update header
+      const headerData = {
+        ...data.header,
+        updatedAt: new Date().toISOString(),
+      };
+      
+      const transformedHeader = transformToNocoDBFormat(
+        headerData,
+        TABLE_FIELD_MAPPINGS.NOTA_FISCAL_HEADER
+      );
+      
+      // Add ID for update
+      transformedHeader.Id = headerId;
+      
+      await this.nocodb.update(
+        NOCODB_TABLES.NOTA_FISCAL.HEADERS,
+        headerId,
+        transformedHeader
+      );
+      
+      console.log('✅ Updated Nota Fiscal header');
+
+      // Get chaveAcesso from updated header
+      const chaveAcesso = transformedHeader.chaveAcesso || data.header.chave_acesso || '';
+
+      // Delete existing items
+      await this.deleteRecords(NOCODB_TABLES.NOTA_FISCAL.ITEMS, fileHash);
+      
+      // Re-insert items
+      const savedItems = [];
+      if (data.items && data.items.length > 0) {
+        for (const item of data.items) {
+          const itemData = {
+            ...item,
+            invoiceNumber: invoiceNumber,
+            
+          };
+          
+          const transformedItem = transformToNocoDBFormat(
+            itemData,
+            TABLE_FIELD_MAPPINGS.NOTA_FISCAL_ITEM
+          );
+          
+          transformedItem.hash_arquivo_origem = fileHash;
+          transformedItem.chaveAcesso = chaveAcesso;
+
+          const savedItem = await this.nocodb.create(
+            NOCODB_TABLES.NOTA_FISCAL.ITEMS,
+            transformedItem
+          );
+          savedItems.push(savedItem);
+        }
+      }
+      
+      console.log('✅ Updated Nota Fiscal items:', savedItems.length);
+
+      return {
+        success: true,
+        documentId: invoiceNumber,
+        details: {
+          headers: headers.list[0],
+          items: savedItems,
+        },
+      };
+    } catch (error) {
+      console.error('❌ Error updating Nota Fiscal:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao atualizar Nota Fiscal',
       };
     }
   }

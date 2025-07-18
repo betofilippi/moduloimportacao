@@ -185,7 +185,8 @@ function getDocumentPrompts(documentType: MultiPromptDocumentType): PromptStep[]
       'proforma_invoice': DocumentType.PROFORMA_INVOICE,
       'swift': DocumentType.SWIFT,
       'di': DocumentType.DI,
-      'numerario': DocumentType.NUMERARIO
+      'numerario': DocumentType.NUMERARIO,
+      'nota_fiscal': DocumentType.NOTA_FISCAL
     };
     
     const docType = typeMap[documentType];
@@ -511,6 +512,45 @@ export async function extractDataWithMultiplePrompts(
               break;
           }
           continue; // Continue processing all Numerário steps
+        }
+        
+        // Special handling for Nota Fiscal (2 steps: header, items)
+        if (documentType === 'nota_fiscal') {
+          switch (stepResult.step) {
+            case 1:
+              // NF-e header data
+              if (cleanResult.startsWith('{') && cleanResult.endsWith('}')) {
+                structuredResult.header = {
+                  data: JSON.parse(cleanResult),
+                  source: 'step_1',
+                  metadata: {
+                    step: stepResult.step,
+                    stepName: stepResult.stepName,
+                    stepDescription: stepResult.stepDescription
+                  }
+                };
+                console.log(`✅ Nota Fiscal - Step 1: Extracted header with ${Object.keys(JSON.parse(cleanResult)).length} fields`);
+              }
+              break;
+            case 2:
+              // NF-e items array
+              if (cleanResult.startsWith('[') && cleanResult.endsWith(']')) {
+                const items = JSON.parse(cleanResult);
+                structuredResult.items = {
+                  data: items,
+                  source: 'step_2',
+                  metadata: {
+                    step: stepResult.step,
+                    stepName: stepResult.stepName,
+                    stepDescription: stepResult.stepDescription,
+                    itemCount: items.length
+                  }
+                };
+                console.log(`✅ Nota Fiscal - Step 2: Extracted ${items.length} items`);
+              }
+              break;
+          }
+          continue; // Skip general processing for nota_fiscal
         }
         
         switch (stepResult.step) {

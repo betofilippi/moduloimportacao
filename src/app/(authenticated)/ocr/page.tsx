@@ -33,12 +33,14 @@ export default function OCRPage() {
     saveProformaInvoice,
     saveSwift,
     saveNumerario,
+    saveNotaFiscal,
     updateDI,
     updateCommercialInvoice,
     updatePackingList,
     updateProformaInvoice,
     updateSwift,
     updateNumerario,
+    updateNotaFiscal,
     resetDocumentData,
     saving, 
     error, 
@@ -213,6 +215,14 @@ export default function OCRPage() {
         result = await saveNumerario(numerarioData, { fileHash: currentFileHash });
         break;
         
+      case 'nota_fiscal':
+        const notaFiscalData = {
+          header: processedData.header?.data || processedData.header || {},
+          items: processedData.items?.data || processedData.items || []
+        };
+        result = await saveNotaFiscal(notaFiscalData, { fileHash: currentFileHash });
+        break;
+        
       default:
         toast.error(`Tipo de documento não suportado: ${selectedDocumentType}`);
         return;
@@ -314,6 +324,14 @@ export default function OCRPage() {
           items: extractedData.items || []
         };
         result = await updateNumerario(numerarioData, currentFileHash);
+        break;
+        
+      case 'nota_fiscal':
+        const notaFiscalData = {
+          header: extractedData.header || {},
+          items: extractedData.items || []
+        };
+        result = await updateNotaFiscal(notaFiscalData, currentFileHash);
         break;
         
       default:

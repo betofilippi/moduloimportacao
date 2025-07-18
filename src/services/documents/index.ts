@@ -39,6 +39,11 @@ export * from './numerario/types';
 export * from './numerario/NumerarioProcessor';
 export * from './numerario/NumerarioValidator';
 
+// Nota Fiscal
+export * from './nota-fiscal/types';
+export * from './nota-fiscal/NotaFiscalProcessor';
+export * from './nota-fiscal/NotaFiscalValidator';
+
 // Auto-register processors
 import { documentProcessorFactory } from './DocumentProcessorFactory';
 import { PackingListProcessor } from './packing-list/PackingListProcessor';
@@ -47,6 +52,7 @@ import { ProformaInvoiceProcessor } from './proforma-invoice/ProformaInvoiceProc
 import { SwiftProcessor } from './swift/SwiftProcessor';
 import { DIProcessor } from './di/DIProcessor';
 import { NumerarioProcessor } from './numerario/NumerarioProcessor';
+import { NotaFiscalProcessor } from './nota-fiscal/NotaFiscalProcessor';
 import { DocumentType } from './base/types';
 
 /**
@@ -80,6 +86,10 @@ export function initializeDocumentProcessors(): void {
     // Register Numerário processor
     const numerarioProcessor = new NumerarioProcessor();
     documentProcessorFactory.register(DocumentType.NUMERARIO, numerarioProcessor);
+
+    // Register Nota Fiscal processor
+    const notaFiscalProcessor = new NotaFiscalProcessor();
+    documentProcessorFactory.register(DocumentType.NOTA_FISCAL, notaFiscalProcessor);
 
     // TODO: Register other processors as they are implemented
     // documentProcessorFactory.register(DocumentType.BILL_OF_LADING, new BillOfLadingProcessor());

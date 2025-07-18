@@ -76,6 +76,11 @@ export class DocumentCacheService {
           whereClause = `(hash_arquivo_origem,eq,${fileHash})`;
           break;
 
+        case "nota_fiscal":
+          tableToCheck = NOCODB_TABLES.NOTA_FISCAL.HEADERS;
+          whereClause = `(hash_arquivo_origem,eq,${fileHash})`;
+          break;
+
         default:
           console.warn(
             `Document type ${documentType} not supported for save check`
@@ -152,6 +157,9 @@ export class DocumentCacheService {
 
         case "numerario":
           return await this.reconstructNumerario(upload);
+
+        case "nota_fiscal":
+          return await this.reconstructNotaFiscal(upload);
 
         default:
           console.warn(
@@ -399,6 +407,50 @@ export class DocumentCacheService {
       diInfo: transformedHeader,  // All data goes here
       header: {},  // Empty for compatibility
       items: [],
+      documentType: upload.tipoDocumento,
+    };
+  }
+
+  /**
+   * Reconstruct Nota Fiscal data
+   */
+  private async reconstructNotaFiscal(upload: CachedUpload): Promise<any> {
+    // Search for header using hash_arquivo_origem
+    const nfHeaders = await this.nocodb.find(
+      NOCODB_TABLES.NOTA_FISCAL.HEADERS,
+      {
+        where: `(hash_arquivo_origem,eq,${upload.hashArquivo})`,
+        limit: 1,
+      }
+    );
+
+    if (!nfHeaders.list.length) return null;
+
+    const header = nfHeaders.list[0];
+
+    // Transform header back to original format
+    const transformedHeader = transformFromNocoDBFormat(
+      header,
+      TABLE_FIELD_MAPPINGS.NOTA_FISCAL_HEADER
+    );
+
+    // Search for items using hash_arquivo_origem
+    const items = await this.nocodb.find(NOCODB_TABLES.NOTA_FISCAL.ITEMS, {
+      where: `(hash_arquivo_origem,eq,${upload.hashArquivo})`,
+      limit: 1000,
+    });
+
+    // Transform each item back to original format
+    const transformedItems = items.list.map((item) =>
+      transformFromNocoDBFormat(
+        item,
+        TABLE_FIELD_MAPPINGS.NOTA_FISCAL_ITEM
+      )
+    );
+
+    return {
+      header: transformedHeader,
+      items: transformedItems,
       documentType: upload.tipoDocumento,
     };
   }

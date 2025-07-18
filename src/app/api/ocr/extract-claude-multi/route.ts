@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate document type for multi-prompt processing
-    const supportedTypes: MultiPromptDocumentType[] = ['packing_list', 'commercial_invoice', 'proforma_invoice', 'swift', 'di', 'numerario'];
+    const supportedTypes: MultiPromptDocumentType[] = ['packing_list', 'commercial_invoice', 'proforma_invoice', 'swift', 'di', 'numerario', 'nota_fiscal'];
     if (!supportedTypes.includes(documentType as MultiPromptDocumentType)) {
       return NextResponse.json(
         { 

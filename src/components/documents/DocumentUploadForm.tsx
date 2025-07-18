@@ -165,33 +165,15 @@ export function DocumentUploadForm({
 
       // Step 2: Process with appropriate endpoint based on document type
       let processResult;
-      
       // Use multi-prompt for packing list, commercial invoice, proforma invoice, swift, di, and numerario PDFs
       if ((documentType === DocumentType.PACKING_LIST || 
            documentType === DocumentType.COMMERCIAL_INVOICE || 
            documentType === DocumentType.PROFORMA_INVOICE ||
            documentType === DocumentType.SWIFT ||
            documentType === DocumentType.DI ||
-           documentType === DocumentType.NUMERARIO) && fileType === '.pdf') {
+           documentType === DocumentType.NUMERARIO || documentType === DocumentType.NOTA_FISCAL ) && fileType === '.pdf') {
         // Use multi-prompt Claude processing
         const extractResponse = await fetch('/api/ocr/extract-claude-multi', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            storagePath,
-            fileType,
-            documentType
-          })
-        });
-
-        processResult = await extractResponse.json();
-        
-        if (!extractResponse.ok || processResult.error) {
-          throw new Error(processResult.error || 'Processing failed');
-        }
-      } else {
-        // Use standard OCR processing for other types
-        const extractResponse = await fetch('/api/ocr/extract', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

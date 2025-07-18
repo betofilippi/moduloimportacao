@@ -35,12 +35,14 @@ export interface UseDocumentSaveReturn {
   ) => Promise<SaveResult>;
   saveSwift: (data: any, options?: SaveOptions) => Promise<SaveResult>;
   saveNumerario: (data: any, options?: SaveOptions) => Promise<SaveResult>;
+  saveNotaFiscal: (data: any, options?: SaveOptions) => Promise<SaveResult>;
   updateDI: (data: any, fileHash: string) => Promise<SaveResult>;
   updateCommercialInvoice: (data: any, fileHash: string) => Promise<SaveResult>;
   updatePackingList: (data: any, fileHash: string) => Promise<SaveResult>;
   updateProformaInvoice: (data: any, fileHash: string) => Promise<SaveResult>;
   updateSwift: (data: any, fileHash: string) => Promise<SaveResult>;
   updateNumerario: (data: any, fileHash: string) => Promise<SaveResult>;
+  updateNotaFiscal: (data: any, fileHash: string) => Promise<SaveResult>;
   resetDocumentData: (
     fileHash: string,
     documentType: string
@@ -223,6 +225,21 @@ export function useDocumentSave(): UseDocumentSaveReturn {
     [documentSaveService, handleSave, user]
   );
 
+  const saveNotaFiscal = useCallback(
+    async (data: any, options?: SaveOptions): Promise<SaveResult> => {
+      const saveOptions = {
+        ...options,
+        userId: user?.email || options?.userId || "anonymous",
+      };
+
+      return handleSave(
+        () => documentSaveService.saveNotaFiscal(data, saveOptions),
+        "Nota Fiscal"
+      );
+    },
+    [documentSaveService, handleSave, user]
+  );
+
   const resetDocumentData = useCallback(
     async (fileHash: string, documentType: string): Promise<SaveResult> => {
       setSaving(true);
@@ -396,6 +413,16 @@ export function useDocumentSave(): UseDocumentSaveReturn {
     [documentSaveService, handleUpdate]
   );
 
+  const updateNotaFiscal = useCallback(
+    async (data: any, fileHash: string): Promise<SaveResult> => {
+      return handleUpdate(
+        () => documentSaveService.updateNotaFiscal(data, fileHash),
+        "Nota Fiscal"
+      );
+    },
+    [documentSaveService, handleUpdate]
+  );
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -411,12 +438,14 @@ export function useDocumentSave(): UseDocumentSaveReturn {
     saveProformaInvoice,
     saveSwift,
     saveNumerario,
+    saveNotaFiscal,
     updateDI,
     updateCommercialInvoice,
     updatePackingList,
     updateProformaInvoice,
     updateSwift,
     updateNumerario,
+    updateNotaFiscal,
     resetDocumentData,
     clearError,
   };
