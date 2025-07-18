@@ -432,7 +432,7 @@ export default function OCRPage() {
   }, [processingResults]);
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="p-7 mx-auto py-6">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold">OCR - Extração de Dados</h1>

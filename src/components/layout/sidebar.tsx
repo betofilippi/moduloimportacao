@@ -22,6 +22,7 @@ import {
   PanelLeftOpen,
   Shield,
   ScanLine,
+  FolderOpen,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -67,6 +68,12 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
     {
       groupLabel: "Processos",
       items: [
+        {
+          title: "Processos de Importação",
+          href: "/processo-importacao",
+          icon: FolderOpen,
+          requiredRole: ['admin', 'user'],
+        },
         {
           title: "Importações (Em Desenvolvimento)",
           href: "/processos",

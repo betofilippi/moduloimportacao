@@ -52,6 +52,37 @@ export function TableEditLayout({
     onDataChange(updatedData);
   };
 
+  // Função para determinar classes da célula baseado no tipo de input
+  const getCellClassName = (column: EditColumnDefinition) => {
+    // Se for número, aplica largura mínima e previne quebra
+    if (column.inputType === 'number') {
+      return cn(
+        column.className,
+        'min-w-[120px]', // largura mínima para números
+        'whitespace-nowrap' // previne quebra de linha
+      );
+    }
+    
+    // Se for texto/textarea, permite quebra e limita largura máxima
+    if (column.inputType === 'textarea' || column.inputType === 'text') {
+      return cn(
+        column.className,
+        'max-w-[300px]', // largura máxima para textos
+        'break-words' // permite quebra de palavras longas
+      );
+    }
+    
+    return column.className;
+  };
+
+  // Função para determinar classes do input baseado no tipo
+  const getInputClassName = (column: EditColumnDefinition) => {
+    if (column.inputType === 'number') {
+      return "w-full min-w-[100px]"; // garante largura mínima no input
+    }
+    return "w-full";
+  };
+
   const renderEditableCell = (column: EditColumnDefinition, item: any, rowIndex: number) => {
     const value = column.accessor ? column.accessor(item) : item[column.key];
     
@@ -72,7 +103,7 @@ export function TableEditLayout({
       value: value || '',
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => 
         handleCellChange(rowIndex, column.key, e.target.value),
-      className: "w-full"
+      className: getInputClassName(column)
     };
 
     switch (column.inputType) {
@@ -127,7 +158,7 @@ export function TableEditLayout({
           {data.map((item, index) => (
             <TableRow key={index}>
               {columns.map((column) => (
-                <TableCell key={column.key} className={column.className}>
+                <TableCell key={column.key} className={getCellClassName(column)}>
                   {renderEditableCell(column, item, index)}
                 </TableCell>
               ))}
