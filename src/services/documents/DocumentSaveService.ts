@@ -156,7 +156,7 @@ export class DocumentSaveService {
 
   private async resetSwift(fileHash: string): Promise<SaveResult> {
     // Swift only has header
-    await this.deleteRecords(NOCODB_TABLES.SWIFT.HEADERS, fileHash);
+    await this.deleteRecords(NOCODB_TABLES.SWIFT, fileHash);
     
     return { success: true };
   }
@@ -613,6 +613,66 @@ export class DocumentSaveService {
   }
 
   /**
+   * Flatten Swift nested data structure for database storage
+   */
+  private flattenSwiftData(data: any): Record<string, any> {
+    const flattened: Record<string, any> = {};
+    
+    // Simple fields
+    flattened.message_type = data.message_type;
+    flattened.senders_reference = data.senders_reference;
+    flattened.transaction_reference = data.transaction_reference;
+    flattened.uetr = data.uetr;
+    flattened.bank_operation_code = data.bank_operation_code;
+    flattened.value_date = data.value_date || data.data_valor;
+    flattened.currency = data.currency;
+    flattened.amount = data.amount;
+    flattened.fatura = data.fatura || data.invoiceNumber;
+    flattened.details_of_charges = data.details_of_charges;
+    flattened.remittance_information = data.remittance_information;
+    flattened.account_with_institution_bic = data.account_with_institution_bic;
+    
+    // Flatten ordering_customer
+    if (data.ordering_customer) {
+      flattened.ordering_customer_name = data.ordering_customer.name || '';
+      flattened.ordering_customer_address = data.ordering_customer.address || '';
+    }
+    
+    // Flatten ordering_institution
+    if (data.ordering_institution) {
+      flattened.ordering_institution_name = data.ordering_institution.name || '';
+      flattened.ordering_institution_bic = data.ordering_institution.bic || '';
+      flattened.ordering_institution_address = data.ordering_institution.address || '';
+    }
+    
+    // Flatten receiver_institution
+    if (data.receiver_institution) {
+      flattened.receiver_institution_name = data.receiver_institution.name || '';
+      flattened.receiver_institution_bic = data.receiver_institution.bic || '';
+    }
+    
+    // Flatten beneficiary
+    if (data.beneficiary) {
+      flattened.beneficiary_account = data.beneficiary.account || '';
+      flattened.beneficiary_name = data.beneficiary.name || '';
+      flattened.beneficiary_address = data.beneficiary.address || '';
+    }
+    
+    return flattened;
+  }
+
+  /**
+   * Prepare Swift data for saving by flattening nested structure
+   */
+  private prepareSwiftData(data: SwiftData): Record<string, any> {
+    // Extract the actual data (could be in header or root level)
+    const swiftInfo = data.header || data;
+    
+    // Flatten the nested structure
+    return this.flattenSwiftData(swiftInfo);
+  }
+
+  /**
    * Save Swift document
    */
   async saveSwift(data: SwiftData, options: SaveOptions = {}): Promise<SaveResult> {
@@ -620,14 +680,20 @@ export class DocumentSaveService {
       const { userId = 'system' } = options;
       const timestamp = new Date().toISOString();
 
+        console.log('antes de preparar',data);
+      // Prepare data with proper structure
+      const preparedData = this.prepareSwiftData(data);
+      
+console.log('depois de preparar',preparedData);
+
       const swiftData = {
-        ...data,
+        ...preparedData,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: userId,
       };
 
-      // Transform to NocoDB format
+      // Transform to NocoDB format - now with proper nested object support
       const transformedData = transformToNocoDBFormat(
         swiftData,
         TABLE_FIELD_MAPPINGS.SWIFT
@@ -661,6 +727,32 @@ export class DocumentSaveService {
   }
 
   /**
+   * Prepare Numerario data for saving
+   */
+  private prepareNumerarioData(data: any): Record<string, any> {
+    console.log('🔍 prepareNumerarioData - full data:', data);
+    console.log('🔍 prepareNumerarioData - data keys:', Object.keys(data));
+    
+    // Extract data from diInfo (where OCR data is stored)
+    const numerarioInfo = data.diInfo || data;
+    
+    console.log('📦 numerarioInfo extracted:', numerarioInfo);
+    console.log('📦 numerarioInfo keys:', numerarioInfo ? Object.keys(numerarioInfo) : 'null');
+    
+    // Return OCR data as-is, adding only fileHash and audit fields
+    // The transformToNocoDBFormat will handle the field mapping
+    const preparedData = {
+      ...numerarioInfo,
+      hash_arquivo_origem: data.fileHash || data.hash_arquivo_origem || '',
+      criado_por: data.userId || 'sistema',
+      atualizado_por: data.userId || 'sistema'
+    };
+    
+    console.log('✅ Prepared data for NocoDB:', preparedData);
+    return preparedData;
+  }
+
+  /**
    * Save Numerario document
    */
   async saveNumerario(data: NumerarioProcessingResult, options: SaveOptions = {}): Promise<SaveResult> {
@@ -668,24 +760,11 @@ export class DocumentSaveService {
       const { userId = 'system' } = options;
       const timestamp = new Date().toISOString();
 
+      // Prepare data with correct structure
+      const preparedData = this.prepareNumerarioData(data);
+      
       const numerarioData = {
-        numeroRE: data.diInfo?.numero_di || data.header?.di_number || '',
-        dataOperacao: data.header?.data_emissao || '',
-        tipoOperacao: data.header?.natureza_operacao || '',
-        moeda: 'BRL',
-        valorMoedaEstrangeira: 0,
-        taxaCambio: 0,
-        valorReais: parseFloat(data.header?.valor_total_nota || '0'),
-        bancoComprador: '',
-        agenciaComprador: '',
-        contaComprador: '',
-        cpfCnpjComprador: '',
-        nomeComprador: data.header?.destinatario_razao_social || '',
-        enderecoComprador: '',
-        finalidade: data.header?.natureza_operacao || '',
-        observacoes: data.header?.informacoes_complementares || '',
-        numeroContrato: '',
-        dataContrato: '',
+        ...preparedData,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: userId,
@@ -710,7 +789,7 @@ export class DocumentSaveService {
 
       return {
         success: true,
-        documentId: savedNumerario.numero_re,
+        documentId: savedNumerario.invoiceNumber || savedNumerario.id,
         details: {
           headers: savedNumerario,
         },
@@ -1219,6 +1298,7 @@ export class DocumentSaveService {
   async updateSwift(data: SwiftData, fileHash: string): Promise<SaveResult> {
     try {
       // Find existing record by hash
+
       const records = await this.nocodb.find(NOCODB_TABLES.SWIFT, {
         where: `(hash_arquivo_origem,eq,${fileHash})`,
         limit: 1
@@ -1230,11 +1310,17 @@ export class DocumentSaveService {
       
       const recordId = records.list[0].Id;
       
+       console.log('antes de preparar',data);
+      // Prepare data with proper structure
+      const preparedData = this.prepareSwiftData(data);
+      
+       console.log('depois de preparar',preparedData);
       const swiftData = {
-        ...data,
+        ...preparedData,
         updatedAt: new Date().toISOString(),
       };
       
+      // Transform to NocoDB format - now with proper nested object support
       const transformedData = transformToNocoDBFormat(
         swiftData,
         TABLE_FIELD_MAPPINGS.SWIFT
@@ -1281,36 +1367,26 @@ export class DocumentSaveService {
       }
       
       const recordId = records.list[0].Id;
-      const numeroRE = records.list[0].numero_re;
       
-      const numerarioData = {
-        numeroRE: data.diInfo?.numero_di || data.header?.di_number || numeroRE,
-        dataOperacao: data.header?.data_emissao || '',
-        tipoOperacao: data.header?.natureza_operacao || '',
-        moeda: 'BRL',
-        valorMoedaEstrangeira: 0,
-        taxaCambio: 0,
-        valorReais: parseFloat(data.header?.valor_total_nota || '0'),
-        bancoComprador: '',
-        agenciaComprador: '',
-        contaComprador: '',
-        cpfCnpjComprador: '',
-        nomeComprador: data.header?.destinatario_razao_social || '',
-        enderecoComprador: '',
-        finalidade: data.header?.natureza_operacao || '',
-        observacoes: data.header?.informacoes_complementares || '',
-        numeroContrato: '',
-        dataContrato: '',
-        updatedAt: new Date().toISOString(),
-      };
+      // Prepare numerario data using the existing method
+      const preparedData = this.prepareNumerarioData(data);
       
+      // Add update timestamp
+      preparedData.atualizado_em = new Date().toISOString();
+      preparedData.atualizado_por = preparedData.atualizado_por || 'sistema';
+      
+      console.log('🔄 Update Numerario - prepared data:', preparedData);
+      
+      // Transform to NocoDB format
       const transformedData = transformToNocoDBFormat(
-        numerarioData,
+        preparedData,
         TABLE_FIELD_MAPPINGS.NUMERARIO
       );
       
       // Add ID for update
       transformedData.Id = recordId;
+      
+      console.log('📤 Update Numerario - transformed data:', transformedData);
       
       await this.nocodb.update(
         NOCODB_TABLES.NUMERARIO,
@@ -1320,9 +1396,9 @@ export class DocumentSaveService {
       
       return {
         success: true,
-        documentId: numeroRE,
+        documentId: recordId.toString(),
         details: {
-          headers: records.list[0],
+          numerario: transformedData,
         },
       };
     } catch (error) {

@@ -36,7 +36,7 @@ export const NOCODB_TABLES = {
 
   // Single Tables
   SWIFT: "m9w1hyki9w77zd7", 
-  NUMERARIO: "tbl_numerario_operations",
+  NUMERARIO: "m072re89i8a8nco",
 
   // Upload tracking
   DOCUMENT_UPLOADS: "m6vjb2ircsf2kry", // Track all uploaded files
@@ -235,69 +235,69 @@ export const TABLE_FIELD_MAPPINGS = {
     package: "embalagem",
   },
 
-  // Swift Fields - Mapeamento para português
+  // Swift Fields - Mapeamento inglês para português (desaninhado)
   SWIFT: {
- tipo_mensagem: "message_type",
-  referencia_remetente: "senders_reference",
-  referencia_transacao: "transaction_reference",
-  uetr: "uetr",
-  codigo_operacao_bancaria: "bank_operation_code",
-  data_valor: "data_valor",
-  moeda: "currency",
-  valor: "amount",
-  cliente_ordenante: "ordering_customer",
-  instituicao_ordenante: "ordering_institution",
-  bic_instituicao_conta: "account_with_institution_bic",
-  instituicao_receptora: "receiver_institution",
-  beneficiario: "beneficiary",
-  informacoes_remessa: "remittance_information",
-  invoiceNumber: "fatura",
-  detalhes_tarifas: "details_of_charges",
-
-  // Campos aninhados - ordering_customer
-  cliente_ordenante_nome: "ordering_customer.name",
-  cliente_ordenante_endereco: "ordering_customer.address",
-
-  // Campos aninhados - ordering_institution
-  instituicao_ordenante_nome: "ordering_institution.name",
-  instituicao_ordenante_bic: "ordering_institution.bic",
-  instituicao_ordenante_endereco: "ordering_institution.address",
-
-  // Campos aninhados - receiver_institution
-  instituicao_receptora_nome: "receiver_institution.name",
-  instituicao_receptora_bic: "receiver_institution.bic",
-
-  // Campos aninhados - beneficiary
-  beneficiario_conta: "beneficiary.account",
-  beneficiario_nome: "beneficiary.name",
-  beneficiario_endereco: "beneficiary.address",
+    // Campos simples
+    tipo_mensagem: "message_type",
+    referencia_remetente: "senders_reference",
+    referencia_transacao: "transaction_reference",
+    uetr: "uetr",
+    codigo_operacao_bancaria: "bank_operation_code",
+    data_valor: "value_date",
+    moeda: "currency",
+    valor: "amount",
+    invoiceNumber: "fatura",
+    detalhes_tarifas: "details_of_charges",
+    informacoes_remessa: "remittance_information",
+    bic_instituicao_conta: "account_with_institution_bic",
+    
+    // Campos desaninhados - ordering_customer
+    cliente_ordenante_nome: "ordering_customer_name",
+    cliente_ordenante_endereco: "ordering_customer_address",
+    
+    // Campos desaninhados - ordering_institution
+    instituicao_ordenante_nome: "ordering_institution_name",
+    instituicao_ordenante_bic: "ordering_institution_bic",
+    instituicao_ordenante_endereco: "ordering_institution_address",
+    
+    // Campos desaninhados - receiver_institution
+    instituicao_receptora_nome: "receiver_institution_name",
+    instituicao_receptora_bic: "receiver_institution_bic",
+    
+    // Campos desaninhados - beneficiary
+    beneficiario_conta: "beneficiary_account",
+    beneficiario_nome: "beneficiary_name",
+    beneficiario_endereco: "beneficiary_address",
   },
 
-  // Numerario Fields - Mapeamento para português
+  // Numerario Fields - Mapeamento banco para OCR (seguindo padrão dos outros mapeamentos)
   NUMERARIO: {
-  invoiceNumber: "invoice_number",
-  tipo_documento: "tipo_documento",
-  data_documento: "data_documento",
-  cnpj_cliente: "cliente_cnpj",
-  nome_cliente: "cliente_nome",
-  taxa_cambio: "cambio_brl",
-  valor_reais: "valor_reais",
-  banco: "banco",
-  conta_destino: "conta_destino",
-  forma_pagamento: "forma_pagamento",
-  parcelas: "parcelas",
-  impostos: "impostos",
-  taxas: "taxas",
-  desconto: "desconto",
-  valor_liquido: "valor_liquido",
-  vendedor: "vendedor",
-  comissao: "comissao",
-  referencia_pedido: "referencia_pedido",
-  observacoes: "observacoes",
-  categoria: "categoria",
-  nf_emitida: "nf_emitida",
-  numero_nf: "numero_nf",
-  data_emissao_nf: "data_emissao_nf"
+    invoiceNumber: "invoice_number",
+    tipo_documento: "tipo_documento",
+    data_documento: "data_documento",
+    cnpj_cliente: "cliente_cnpj",
+    nome_cliente: "cliente_nome",
+    taxa_cambio: "cambio_brl",
+    valor_reais: "valor_reais",
+    banco: "banco",
+    conta_destino: "conta_destino",
+    forma_pagamento: "forma_pagamento",
+    parcelas: "parcelas",
+    impostos: "impostos",
+    taxas: "taxas",
+    desconto: "desconto",
+    valor_liquido: "valor_liquido",
+    vendedor: "vendedor",
+    comissao: "comissao",
+    referencia_pedido: "referencia_pedido",
+    observacoes: "observacoes",
+    categoria: "categoria",
+    nf_emitida: "nf_emitida",
+    numero_nf: "numero_nf",
+    data_emissao_nf: "data_emissao_nf",
+    chave_nf: "chave_nf",
+    criado_por: "created_by",
+    atualizado_por: "updated_by"
   },
 } as const;
 
@@ -365,14 +365,17 @@ export function transformToNocoDBFormat(
 ): Record<string, any> {
   const transformed: Record<string, any> = {};
 
-  for (const [docField, dbField] of Object.entries(fieldMapping)) {
-    console.log("LOG FOR", docField, dbField);
-    console.log("IF HAS PROPRIEDADE:", data.hasOwnProperty(docField));
+  // Simple mapping: dbField (key) -> docField (value)
+  for (const [dbField, docField] of Object.entries(fieldMapping)) {
+    console.log("Mapping", docField, "->", dbField);
+    
     if (data.hasOwnProperty(docField)) {
       transformed[dbField] = data[docField];
+      console.log("Mapped value:", data[docField]);
     }
   }
-  console.log("LOG TRANFORMED", transformed);
+  
+  console.log("Transformed data:", transformed);
   return transformed;
 }
 
@@ -385,7 +388,7 @@ export function transformFromNocoDBFormat(
 ): Record<string, any> {
   const transformed: Record<string, any> = {};
   const reverseMapping = Object.entries(fieldMapping).reduce(
-    (acc, [docField, dbField]) => {
+    (acc, [dbField, docField]) => {
       acc[dbField] = docField;
       return acc;
     },
@@ -399,4 +402,61 @@ export function transformFromNocoDBFormat(
   }
 
   return transformed;
+}
+
+/**
+ * Unflatten Swift data to restore nested structure
+ */
+export function unflattenSwiftData(flatData: Record<string, any>): Record<string, any> {
+  const unflattened: Record<string, any> = {};
+  
+  // Simple fields
+  unflattened.message_type = flatData.message_type;
+  unflattened.senders_reference = flatData.senders_reference;
+  unflattened.transaction_reference = flatData.transaction_reference;
+  unflattened.uetr = flatData.uetr;
+  unflattened.bank_operation_code = flatData.bank_operation_code;
+  unflattened.value_date = flatData.value_date;
+  unflattened.currency = flatData.currency;
+  unflattened.amount = flatData.amount;
+  unflattened.fatura = flatData.fatura;
+  unflattened.details_of_charges = flatData.details_of_charges;
+  unflattened.remittance_information = flatData.remittance_information;
+  unflattened.account_with_institution_bic = flatData.account_with_institution_bic;
+  
+  // Reconstruct ordering_customer
+  if (flatData.ordering_customer_name || flatData.ordering_customer_address) {
+    unflattened.ordering_customer = {
+      name: flatData.ordering_customer_name || '',
+      address: flatData.ordering_customer_address || ''
+    };
+  }
+  
+  // Reconstruct ordering_institution
+  if (flatData.ordering_institution_name || flatData.ordering_institution_bic || flatData.ordering_institution_address) {
+    unflattened.ordering_institution = {
+      name: flatData.ordering_institution_name || '',
+      bic: flatData.ordering_institution_bic || '',
+      address: flatData.ordering_institution_address || ''
+    };
+  }
+  
+  // Reconstruct receiver_institution
+  if (flatData.receiver_institution_name || flatData.receiver_institution_bic) {
+    unflattened.receiver_institution = {
+      name: flatData.receiver_institution_name || '',
+      bic: flatData.receiver_institution_bic || ''
+    };
+  }
+  
+  // Reconstruct beneficiary
+  if (flatData.beneficiary_account || flatData.beneficiary_name || flatData.beneficiary_address) {
+    unflattened.beneficiary = {
+      account: flatData.beneficiary_account || '',
+      name: flatData.beneficiary_name || '',
+      address: flatData.beneficiary_address || ''
+    };
+  }
+  
+  return unflattened;
 }

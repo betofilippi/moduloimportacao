@@ -30,7 +30,8 @@ import {
   viewerUtils,
   ExtractedData 
 } from '../components/BaseViewer';
-import { HeaderSection, HeaderField } from '../components/HeaderSection';
+import { HeaderField } from '../components/HeaderSection';
+import { FieldSection } from '../components/FieldSection';
 import { numerarioFieldAccessors, getFieldValue, normalizeMonetaryValue } from '../utils/fieldMapping';
 
 interface NumerarioData extends ExtractedData {
@@ -48,6 +49,26 @@ export function NumerarioViewer(props: BaseViewerProps) {
   
   console.log('🎯 NumerarioViewer - props recebidas:', props);
 
+  // Initial data setup based on props structure
+  const getInitialData = () => {
+    // If we have data in props, return it directly
+    if (props.data?.diInfo) {
+      console.log('📋 Setting initial data from props.data');
+      return props.data;
+    }
+    // If we have structuredResult.diInfo.data, use that structure
+    if (props.data?.structuredResult?.diInfo?.data) {
+      console.log('📋 Setting initial data from structuredResult');
+      return {
+        diInfo: props.data.structuredResult.diInfo.data
+      };
+    }
+    // Otherwise use default structure with empty diInfo
+    return {
+      diInfo: {}
+    };
+  };
+
   const {
     isEditing,
     editedData,
@@ -58,10 +79,7 @@ export function NumerarioViewer(props: BaseViewerProps) {
     updateField,
     setEditedData
   } = useViewerState<NumerarioData>(
-    {
-      numerarioData: {},
-      diInfo: {}
-    },
+    getInitialData(),
     props
   );
 
@@ -69,19 +87,31 @@ export function NumerarioViewer(props: BaseViewerProps) {
 
   // Extract Numerário data - support multiple formats
   const extractNumerarioData = () => {
-    // Check for diInfo structure (from OCR)
+    console.log('🔍 NumerarioViewer - extracting data from:', {
+      props_data: props.data,
+      editedData: editedData
+    });
+    
+    // Check for diInfo in editedData (primary source)
+    if (editedData.diInfo && Object.keys(editedData.diInfo).length > 0) {
+      console.log('✅ Found data in editedData.diInfo');
+      return editedData.diInfo;
+    }
+    
+    // Check for diInfo.data structure
     if (editedData.diInfo?.data) {
+      console.log('✅ Found data in editedData.diInfo.data');
       return editedData.diInfo.data;
     }
-    // Check for numerarioData
-    if (editedData.numerarioData) {
-      return editedData.numerarioData;
-    }
+    
     // Check direct data
-    if (editedData.numero_fatura || editedData.invoice_number) {
+    if (editedData.invoice_number || editedData.numero_fatura) {
+      console.log('✅ Found data in editedData directly');
       return editedData;
     }
+    
     // Default empty object
+    console.log('⚠️ No data found, returning empty object');
     return {};
   };
 
@@ -311,7 +341,8 @@ export function NumerarioViewer(props: BaseViewerProps) {
   }
 
   return (
-    <Card className={className}>
+    <div className={className}>
+      <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -349,61 +380,37 @@ export function NumerarioViewer(props: BaseViewerProps) {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* General Information */}
-        <HeaderSection
+        <FieldSection
           title="Informações Gerais"
           fields={headerFields}
           data={numerarioData}
           isEditing={isEditing}
-          onFieldChange={(field, value) => {
-            const newData = extractNumerarioData();
-            newData[field] = value;
-            
-            if (editedData.diInfo?.data) {
-              setEditedData(prev => ({
-                ...prev,
-                diInfo: {
-                  ...prev.diInfo,
-                  data: newData
-                }
-              }));
-            } else if (editedData.numerarioData) {
-              setEditedData(prev => ({
-                ...prev,
-                numerarioData: newData
-              }));
-            } else {
-              setEditedData(newData);
-            }
+          onChange={(field, value) => {
+            setEditedData(prev => ({
+              ...prev,
+              diInfo: {
+                ...prev.diInfo,
+                [field]: value
+              }
+            }));
           }}
         />
 
         {/* Financial Information */}
         <div className="border-t pt-6">
-          <HeaderSection
+          <FieldSection
             title="Informações Financeiras"
             fields={financialFields}
             data={numerarioData}
             isEditing={isEditing}
-            onFieldChange={(field, value) => {
-              const newData = extractNumerarioData();
-              newData[field] = value;
-              
-              if (editedData.diInfo?.data) {
-                setEditedData(prev => ({
-                  ...prev,
-                  diInfo: {
-                    ...prev.diInfo,
-                    data: newData
-                  }
-                }));
-              } else if (editedData.numerarioData) {
-                setEditedData(prev => ({
-                  ...prev,
-                  numerarioData: newData
-                }));
-              } else {
-                setEditedData(newData);
-              }
+            onChange={(field, value) => {
+              setEditedData(prev => ({
+                ...prev,
+                diInfo: {
+                  ...prev.diInfo,
+                  [field]: value
+                }
+              }));
             }}
           />
         </div>
@@ -448,62 +455,38 @@ export function NumerarioViewer(props: BaseViewerProps) {
 
         {/* Payment Information */}
         <div className="border-t pt-6">
-          <HeaderSection
+          <FieldSection
             title="Informações de Pagamento"
             fields={paymentFields}
             data={numerarioData}
             isEditing={isEditing}
-            onFieldChange={(field, value) => {
-              const newData = extractNumerarioData();
-              newData[field] = value;
-              
-              if (editedData.diInfo?.data) {
-                setEditedData(prev => ({
-                  ...prev,
-                  diInfo: {
-                    ...prev.diInfo,
-                    data: newData
-                  }
-                }));
-              } else if (editedData.numerarioData) {
-                setEditedData(prev => ({
-                  ...prev,
-                  numerarioData: newData
-                }));
-              } else {
-                setEditedData(newData);
-              }
+            onChange={(field, value) => {
+              setEditedData(prev => ({
+                ...prev,
+                diInfo: {
+                  ...prev.diInfo,
+                  [field]: value
+                }
+              }));
             }}
           />
         </div>
 
         {/* Additional Information */}
         <div className="border-t pt-6">
-          <HeaderSection
+          <FieldSection
             title="Informações Adicionais"
             fields={additionalFields}
             data={numerarioData}
             isEditing={isEditing}
-            onFieldChange={(field, value) => {
-              const newData = extractNumerarioData();
-              newData[field] = value;
-              
-              if (editedData.diInfo?.data) {
-                setEditedData(prev => ({
-                  ...prev,
-                  diInfo: {
-                    ...prev.diInfo,
-                    data: newData
-                  }
-                }));
-              } else if (editedData.numerarioData) {
-                setEditedData(prev => ({
-                  ...prev,
-                  numerarioData: newData
-                }));
-              } else {
-                setEditedData(newData);
-              }
+            onChange={(field, value) => {
+              setEditedData(prev => ({
+                ...prev,
+                diInfo: {
+                  ...prev.diInfo,
+                  [field]: value
+                }
+              }));
             }}
           />
         </div>
@@ -535,5 +518,6 @@ export function NumerarioViewer(props: BaseViewerProps) {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

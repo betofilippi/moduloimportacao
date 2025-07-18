@@ -51,7 +51,8 @@ export function HeaderSection({
   className
 }: HeaderSectionProps) {
   const renderField = (field: HeaderField) => {
-    const value = data[field.key];
+    // Use accessor if available, otherwise use key directly
+    const value = field.accessor ? field.accessor(data) : data[field.key];
     
     if (field.render) {
       return field.render(value, isEditing, (newValue) => onChange?.(field.key, newValue));

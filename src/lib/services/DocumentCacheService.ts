@@ -10,6 +10,7 @@ import {
   NOCODB_TABLES,
   TABLE_FIELD_MAPPINGS,
   transformFromNocoDBFormat,
+  unflattenSwiftData,
 } from "@/config/nocodb-tables";
 import { NocoDBQueryParams } from "@/types/nocodb";
 
@@ -352,6 +353,7 @@ export class DocumentCacheService {
       where: `(hash_arquivo_origem,eq,${upload.hashArquivo})`,
       limit: 1,
     });
+    console.log("BANCO DE DADOS SWIFT", swiftData);
 
     if (!swiftData.list.length) return null;
 
@@ -360,9 +362,14 @@ export class DocumentCacheService {
       swiftData.list[0],
       TABLE_FIELD_MAPPINGS.SWIFT
     );
+    console.log("Transformed flat data:", transformedData);
+    
+    // Unflatten the data to restore nested structure
+    const unflattenedData = unflattenSwiftData(transformedData);
+    console.log("Unflattened data:", unflattenedData);
 
     return {
-      header: transformedData,
+      header: unflattenedData,
       documentType: upload.tipoDocumento,
     };
   }
@@ -387,9 +394,10 @@ export class DocumentCacheService {
       TABLE_FIELD_MAPPINGS.NUMERARIO
     );
 
+    // Return data in diInfo to match expected structure
     return {
-      diInfo: { numero_di: transformedHeader.numeroRE },
-      header: transformedHeader,
+      diInfo: transformedHeader,  // All data goes here
+      header: {},  // Empty for compatibility
       items: [],
       documentType: upload.tipoDocumento,
     };

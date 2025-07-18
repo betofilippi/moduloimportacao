@@ -185,6 +185,7 @@ export function useViewerState<T extends ExtractedData>(
  */
 export const viewerUtils = {
   formatCurrency: (value: number | string, currency: string = 'USD'): string => {
+    console.log("LOG FORMAT CURRENCY", value, currency)
     const numValue = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) : value;
     
     return new Intl.NumberFormat('pt-BR', {
@@ -205,6 +206,7 @@ export const viewerUtils = {
     if (!value) return 0;
     
     const cleaned = value.toString().replace(/[^0-9.-]/g, '');
+    console.log("formato feito")
     return parseFloat(cleaned) || 0;
   }
 };

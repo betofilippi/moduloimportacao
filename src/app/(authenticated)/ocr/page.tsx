@@ -120,6 +120,7 @@ export default function OCRPage() {
         if (editedData.header) updatedResults.data.header = editedData.header;
         if (editedData.items) updatedResults.data.items = editedData.items;
         if (editedData.taxInfo) updatedResults.data.taxInfo = editedData.taxInfo;
+        if (editedData.diInfo) updatedResults.data.diInfo = editedData.diInfo;
       }
     }
     

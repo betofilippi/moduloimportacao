@@ -106,7 +106,7 @@ export function SwiftViewer(props: BaseViewerProps) {
     },
     {
       key: 'currency',
-      label: 'Moeda',
+      label: 'Moeda (USD, BRL, EUR, CNY)',
       type: 'text',
       icon: <DollarSign className="h-5 w-5 text-muted-foreground" />
     },
