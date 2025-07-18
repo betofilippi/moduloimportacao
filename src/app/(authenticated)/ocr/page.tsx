@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DocumentUploadForm } from '@/components/documents/DocumentUploadForm';
 import { OCRResultsViewer } from '@/components/ocr/OCRResultsViewer';
 import { SaveToDatabaseCard } from '@/components/ocr/SaveToDatabaseCard';
@@ -14,9 +15,15 @@ import { getDocumentCacheService } from '@/lib/services/DocumentCacheService';
 import { getNocoDBService } from '@/lib/services/nocodb';
 import { NOCODB_TABLES } from '@/config/nocodb-tables';
 
-export default function OCRPage() {
+function OCRPageContent() {
+  const searchParams = useSearchParams();
+  const documentTypeParam = searchParams.get('documentType');
+  const fromParam = searchParams.get('from');
+  
   const [processingResults, setProcessingResults] = useState<any>(null);
-  const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType | null>(null);
+  const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType | null>(
+    documentTypeParam as DocumentType || null
+  );
   const [processedData, setProcessedData] = useState<any>(null);
   const [originalData, setOriginalData] = useState<any>(null);
   const [lastSaveTime, setLastSaveTime] = useState<Date | undefined>();
@@ -24,6 +31,7 @@ export default function OCRPage() {
   const [currentFileHash, setCurrentFileHash] = useState<string | undefined>();
   const [resetting, setResetting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [pageOrigin, setPageOrigin] = useState<string | null>(fromParam);
   
   // Hook para salvar no banco de dados
   const { 
@@ -444,6 +452,18 @@ export default function OCRPage() {
 
       </div>
 
+      {/* Mostrar indicador se veio de outro fluxo */}
+      {pageOrigin === 'new_process' && (
+        <Card className="mb-6 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="flex items-center gap-2 py-3">
+            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              Processo de importação criado com sucesso! Agora faça o upload dos documentos.
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Content */}
       <div className="space-y-6">
         {/* Row 1: Upload + Processing Status + Save */}
@@ -453,6 +473,7 @@ export default function OCRPage() {
               onProcessComplete={handleProcessComplete}
               onClear={handleClearUI}
               hasProcessedData={!!processingResults}
+              defaultType={documentTypeParam as DocumentType}
               className=""
             />
           </div>
@@ -518,5 +539,18 @@ export default function OCRPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Componente principal com Suspense
+export default function OCRPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-full">
+        <div className="text-muted-foreground">Carregando...</div>
+      </div>
+    }>
+      <OCRPageContent />
+    </Suspense>
   );
 }

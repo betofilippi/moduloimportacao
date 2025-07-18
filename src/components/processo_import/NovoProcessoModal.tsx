@@ -76,9 +76,10 @@ export function NovoProcessoModal({
         responsavel: 'Sistema' // Será atualizado pelo usuário logado
       });
       
-      // Fecha o modal e redireciona para OCR
+      // Fecha o modal e redireciona para OCR com parâmetros
       onOpenChange(false);
-      router.push('/ocr');
+      // Por padrão, vamos usar proforma_invoice como tipo inicial
+      router.push('/ocr?documentType=proforma_invoice&from=new_process');
     } catch (error) {
       console.error('Erro ao criar processo:', error);
     } finally {
