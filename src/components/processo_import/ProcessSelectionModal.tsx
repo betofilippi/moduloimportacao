@@ -50,6 +50,7 @@ interface ProcessSelectionModalProps {
   onProcessSelect: (processId: string) => void;
   onCreateNewProcess: () => void;
   onSkipAttachment?: () => void;
+  onSuccessfulConnection?: (processId: string) => void; // New callback
 }
 
 export function ProcessSelectionModal({
@@ -61,7 +62,8 @@ export function ProcessSelectionModal({
   fileHash,
   onProcessSelect,
   onCreateNewProcess,
-  onSkipAttachment
+  onSkipAttachment,
+  onSuccessfulConnection
 }: ProcessSelectionModalProps) {
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
   const [isAttaching, setIsAttaching] = useState(false);
@@ -70,6 +72,9 @@ export function ProcessSelectionModal({
   const [autoConnectCountdown, setAutoConnectCountdown] = useState<number>(0);
   const [isAutoConnectPaused, setIsAutoConnectPaused] = useState(false);
   const countdownInterval = useRef<NodeJS.Timeout | null>(null);
+  
+  // Prevent duplicate requests
+  const attachingRef = useRef(false);
 
   // Initialize auto-connect when modal opens with single process
   useEffect(() => {
@@ -84,6 +89,8 @@ export function ProcessSelectionModal({
     if (!open) {
       setAutoConnectCountdown(0);
       setIsAutoConnectPaused(false);
+      attachingRef.current = false; // Reset attach ref
+      setIsAttaching(false); // Reset attaching state
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
         countdownInterval.current = null;
@@ -126,9 +133,17 @@ export function ProcessSelectionModal({
 
   const handleAttach = async () => {
     if (!selectedProcessId || !fileHash) return;
+    
+    // Prevent duplicate requests
+    if (attachingRef.current) {
+      console.log('Attach already in progress, skipping duplicate request');
+      return;
+    }
 
+    attachingRef.current = true;
     setIsAttaching(true);
     setAutoConnectCountdown(0); // Stop countdown
+    
     try {
       // Call API to connect document to process
       const response = await fetch('/api/processo-importacao/connect-documents', {
@@ -149,13 +164,35 @@ export function ProcessSelectionModal({
       }
 
       toast.success('Documento conectado ao processo com sucesso!');
-      await onProcessSelect(selectedProcessId);
+      
+      // Close modal first
       onOpenChange(false);
+      
+      // Call success callback if provided
+      if (onSuccessfulConnection && typeof onSuccessfulConnection === 'function') {
+        try {
+          await onSuccessfulConnection(selectedProcessId);
+        } catch (callbackError) {
+          console.warn('onSuccessfulConnection callback error (non-critical):', callbackError);
+        }
+      }
+      
+      // Try to call onProcessSelect if it exists and is a function
+      // This is optional - if it fails, we already showed success
+      if (onProcessSelect && typeof onProcessSelect === 'function') {
+        try {
+          await onProcessSelect(selectedProcessId);
+        } catch (selectError) {
+          console.warn('onProcessSelect callback error (non-critical):', selectError);
+          // Don't show error to user since the connection was successful
+        }
+      }
     } catch (error) {
       console.error('Error connecting document:', error);
       toast.error(`Erro ao conectar documento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setIsAttaching(false);
+      attachingRef.current = false; // Reset the ref
     }
   };
 

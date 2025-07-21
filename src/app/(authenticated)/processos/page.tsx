@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Search, Filter, Download, FileQuestion } from "lucide-react"
+import { Plus, Search, Filter, Download, FileQuestion, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,6 +24,7 @@ export default function ProcessosPage() {
   const [isNewProcessModalOpen, setIsNewProcessModalOpen] = useState(false)
   const [isUnknownDocumentModalOpen, setIsUnknownDocumentModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const { find, create, update, remove } = useNocoDB(NOCODB_TABLES.PROCESSOS_IMPORTACAO)
 
@@ -81,6 +82,57 @@ export default function ProcessosPage() {
   useEffect(() => {
     fetchProcessos()
   }, [fetchProcessos])
+
+  // Handle refresh with check route for each process
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true)
+      
+      // Create array of promises to check each process
+      const checkPromises = processos.map(async (processo) => {
+        try {
+          const response = await fetch('/api/processo-importacao/check', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ processId: processo.id }),
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            return { processId: processo.id, success: data.success }
+          }
+          return { processId: processo.id, success: false }
+        } catch (error) {
+          console.error(`Error checking process ${processo.id}:`, error)
+          return { processId: processo.id, success: false }
+        }
+      })
+      
+      // Wait for all checks to complete
+      const results = await Promise.all(checkPromises)
+      const successCount = results.filter(r => r.success).length
+      
+      console.log(`✅ Checked ${successCount}/${processos.length} processes successfully`)
+      
+      if (successCount > 0) {
+        toast.success(`${successCount} processos atualizados com sucesso`)
+        // Reload the process list to show updated data
+        await fetchProcessos()
+      } else if (processos.length === 0) {
+        toast.info('Nenhum processo para atualizar')
+      } else {
+        toast.warning('Nenhum processo foi atualizado')
+      }
+      
+    } catch (error) {
+      console.error('Error refreshing processes:', error)
+      toast.error('Erro ao atualizar processos')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   // Filter processos based on search term
   const filteredProcessos = processos.filter(processo =>
@@ -192,6 +244,15 @@ export default function ProcessosPage() {
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Exportar
+          </Button>
+          <Button 
+            variant="outline" 
+            size="default"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Atualizando...' : 'Atualizar'}
           </Button>
           <Button onClick={() => setIsNewProcessModalOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />

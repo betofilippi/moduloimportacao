@@ -3,13 +3,13 @@ import { getSession } from '@/lib/supabase-server';
 import { DocumentType } from '@/services/documents/base/types';
 
 /**
- * STEP 2: Process document with identified type
- * - Receives storage path and document type
- * - Runs OCR with specific document prompts
- * - Returns extracted structured data
+ * STEP 2: Process document with already extracted data
+ * - Receives extracted data from OCR
+ * - Validates and prepares data for saving
+ * - Returns structured data ready for database
  */
 export async function POST(request: NextRequest) {
-  console.log('🔄 [PROCESS] Starting document processing with identified type');
+  console.log('🔄 [PROCESS] Processing document with extracted data');
   
   try {
     // Check authentication
@@ -20,20 +20,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { storagePath, documentType, fileHash, originalFileName } = body;
+    const { documentType, extractedData, fileHash, originalFileName, storagePath } = body;
 
     console.log('📋 [PROCESS] Request received:', {
-      storagePath,
       documentType,
+      hasExtractedData: !!extractedData,
       fileHash,
-      originalFileName
+      originalFileName,
+      storagePath
     });
 
     // Validate inputs
-    if (!storagePath || !documentType || !fileHash) {
+    if (!documentType || !extractedData || !fileHash) {
       console.log('❌ [PROCESS] Missing required fields');
       return NextResponse.json(
-        { error: 'Missing required fields: storagePath, documentType, fileHash' },
+        { error: 'Missing required fields: documentType, extractedData, fileHash' },
         { status: 400 }
       );
     }
@@ -48,52 +49,38 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      console.log(`🎯 [PROCESS] Processing as ${documentType}...`);
+      console.log(`🎯 [PROCESS] Processing ${documentType} data...`);
 
-      // Call extract-claude-multi with the correct document type
-      const extractData = {
-        storagePath,
-        fileType: '.pdf',
-        documentType,
-        fileHash
-      };
-
-      const extractResponse = await fetch(
-        new URL('/api/ocr/extract-claude-multi', request.url).toString(),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cookie': request.headers.get('cookie') || ''
-          },
-          body: JSON.stringify(extractData)
-        }
-      );
-
-      if (!extractResponse.ok) {
-        const errorData = await extractResponse.json();
-        console.log('❌ [PROCESS] OCR extraction failed:', errorData);
-        throw new Error(errorData.error || 'Failed to extract document data');
-      }
-
-      const extractResult = await extractResponse.json();
-      console.log('✅ [PROCESS] OCR extraction successful');
-
-      // Parse extracted data based on document type
+      // Parse and validate extracted data structure
       let structuredData;
-      if (extractResult.data?.structuredResult) {
-        structuredData = extractResult.data.structuredResult;
+      if (extractedData.structuredResult) {
+        structuredData = extractedData.structuredResult;
         console.log('📊 [PROCESS] Using structured result from multi-step extraction');
-      } else if (extractResult.data?.extractedData) {
-        structuredData = extractResult.data.extractedData;
+      } else if (extractedData.extractedData) {
+        structuredData = extractedData.extractedData;
         console.log('📊 [PROCESS] Using extracted data');
       } else {
-        console.log('⚠️ [PROCESS] No structured data found, using raw text');
-        structuredData = { rawText: extractResult.data?.rawText || '' };
+        // Direct data format
+        structuredData = extractedData;
+        console.log('📊 [PROCESS] Using direct data format');
       }
 
       // Log key fields based on document type
-      console.log('🔍 [PROCESS] Extracted key fields:', getKeyFields(documentType, structuredData));
+      console.log('🔍 [PROCESS] Processing key fields:', getKeyFields(documentType, structuredData));
+
+      // Validate the structure based on document type
+      const validationErrors = validateDocumentData(documentType, structuredData);
+      if (validationErrors.length > 0) {
+        console.log('❌ [PROCESS] Validation errors:', validationErrors);
+        return NextResponse.json(
+          { 
+            success: false,
+            error: 'Data validation failed',
+            validationErrors
+          },
+          { status: 400 }
+        );
+      }
 
       // Prepare response
       const response = {
@@ -104,9 +91,9 @@ export async function POST(request: NextRequest) {
           storagePath,
           fileHash,
           originalFileName,
-          processingTime: extractResult.data?.metadata?.processingTime,
-          tokenUsage: extractResult.data?.metadata?.tokenUsage,
-          multiStep: extractResult.data?.metadata?.multiPrompt || false
+          processingTime: extractedData.metadata?.processingTime,
+          tokenUsage: extractedData.metadata?.tokenUsage,
+          multiStep: extractedData.metadata?.multiPrompt || false
         },
         readyToSave: true,
         message: `Documento ${documentType} processado com sucesso`
@@ -143,6 +130,57 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Validate document data structure
+ */
+function validateDocumentData(documentType: string, data: any): string[] {
+  const errors: string[] = [];
+  
+  if (!data) {
+    errors.push('No data provided');
+    return errors;
+  }
+
+  // Basic validation based on document type
+  switch (documentType) {
+    case DocumentType.PROFORMA_INVOICE:
+      if (!data.header?.data) errors.push('Missing header data');
+      if (!data.items?.data || !Array.isArray(data.items.data)) errors.push('Missing or invalid items data');
+      break;
+      
+    case DocumentType.COMMERCIAL_INVOICE:
+      if (!data.header?.data) errors.push('Missing header data');
+      if (!data.items?.data || !Array.isArray(data.items.data)) errors.push('Missing or invalid items data');
+      break;
+      
+    case DocumentType.PACKING_LIST:
+      if (!data.header?.data) errors.push('Missing header data');
+      break;
+      
+    case DocumentType.SWIFT:
+      // Swift can have direct fields or header.data structure
+      if (!data.swift_code && !data.header?.data?.swift_code) errors.push('Missing SWIFT code');
+      break;
+      
+    case DocumentType.DI:
+      if (!data.header?.data) errors.push('Missing header data');
+      break;
+      
+    case DocumentType.NUMERARIO:
+      // Numerário pode ter dados em diInfo.data ou header.data
+      if (!data.diInfo?.data && !data.header?.data) {
+        errors.push('Missing numerario data (expected in diInfo or header)');
+      }
+      break;
+      
+    case DocumentType.NOTA_FISCAL:
+      if (!data.header?.data) errors.push('Missing header data');
+      break;
+  }
+  
+  return errors;
 }
 
 /**
@@ -187,10 +225,14 @@ function getKeyFields(documentType: string, data: any): Record<string, any> {
       };
     
     case DocumentType.NUMERARIO:
+      // Numerário tem estrutura especial com diInfo
+      const numerarioData = data.diInfo?.data || data.header?.data || {};
       return {
-        diNumber: data.diInfo?.data?.di_number,
-        nfeNumber: data.header?.data?.nfe_number,
-        totalAmount: data.header?.data?.total_value
+        diNumber: numerarioData.di_number,
+        nfeNumber: numerarioData.numero_nf || numerarioData.nfe_number,
+        totalAmount: numerarioData.valor_liquido || numerarioData.total_value,
+        invoiceNumber: numerarioData.invoice_number,
+        tipoDocumento: numerarioData.tipo_documento
       };
     
     case DocumentType.NOTA_FISCAL:

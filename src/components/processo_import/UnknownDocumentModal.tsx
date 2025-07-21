@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import {
   FileQuestion,
   Upload,
@@ -83,6 +84,9 @@ export function UnknownDocumentModal({
   const [identificationResult, setIdentificationResult] = useState<IdentificationResult | null>(null);
   const [step, setStep] = useState<'upload' | 'processing' | 'results'>('upload');
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
+  const [processingProgress, setProcessingProgress] = useState<number>(0);
+  const [processingStatus, setProcessingStatus] = useState<string>('');
+  const [savedExtractedData, setSavedExtractedData] = useState<any>(null); // Store extracted data
   
   // Auto-processing states
   const [autoProcessCountdown, setAutoProcessCountdown] = useState<number>(0);
@@ -228,6 +232,36 @@ export function UnknownDocumentModal({
     }
   };
 
+  const updateProcessWithProformaData = async (processId: string, proformaData: any) => {
+    try {
+      console.log('🔄 [PROFORMA UPDATE] Updating process with Proforma data');
+      
+      const response = await fetch('/api/processo-importacao/update-from-proforma', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          processId,
+          proformaData,
+          fileHash: identificationResult?.uploadData.fileHash
+        })
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        console.log('✅ [PROFORMA UPDATE] Process updated successfully');
+        toast.success('Dados da Proforma aplicados ao processo');
+      } else {
+        console.warn('⚠️ [PROFORMA UPDATE] Update failed:', result);
+      }
+    } catch (error) {
+      console.error('❌ [PROFORMA UPDATE] Error updating process:', error);
+      // Don't show error to user - this is an enhancement, not critical
+    }
+  };
+
   const searchRelatedProcesses = async (
     identificationData: IdentificationResult,
     documentId: string,
@@ -275,6 +309,64 @@ export function UnknownDocumentModal({
     }
   };
 
+  const pollForOCRStatus = async (requestId: string): Promise<any> => {
+    const maxAttempts = 300; // 10 minutes max (2 second intervals)
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      try {
+        const statusResponse = await fetch(`/api/ocr/extract-claude-multi/status?requestId=${requestId}`, {
+          signal: abortControllerRef.current?.signal
+        });
+        
+        if (!statusResponse.ok) {
+          // If 404, assume still processing
+          if (statusResponse.status === 404) {
+            setProcessingStatus('Processamento em andamento...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            attempts++;
+            continue;
+          }
+          throw new Error('Failed to check status');
+        }
+        
+        const statusResult = await statusResponse.json();
+        
+        // Update progress based on current step
+        if (statusResult.currentStep) {
+          const progress = (statusResult.currentStep / (statusResult.totalSteps || 3)) * 100;
+          setProcessingProgress(progress);
+        }
+        
+        if (statusResult.currentStepName) {
+          setProcessingStatus(`Processando: ${statusResult.currentStepName}`);
+        }
+        
+        // Check if completed
+        if (statusResult.status === 'completed' && statusResult.result) {
+          return statusResult.result;
+        }
+        
+        // Check for errors
+        if (statusResult.status === 'failed' || statusResult.error) {
+          throw new Error(statusResult.error || 'Processing failed');
+        }
+        
+        // Wait 2 seconds before next poll
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+        
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          throw new Error('Processing cancelled');
+        }
+        throw error;
+      }
+    }
+    
+    throw new Error('Processing timeout - exceeded 10 minutes');
+  };
+
   const handleProcessAsType = async (documentType: string, processId?: string) => {
     // Check if already processing using ref
     if (processingRef.current || !identificationResult) return;
@@ -292,17 +384,64 @@ export function UnknownDocumentModal({
     abortControllerRef.current = new AbortController();
     
     try {
-      // Call process endpoint
-      const processResponse = await fetch('/api/documents/process', {
+      // Step 1: Call OCR extraction directly
+      console.log('🚀 Starting OCR extraction for document type:', documentType);
+      
+      const ocrResponse = await fetch('/api/ocr/extract-claude-multi', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           storagePath: identificationResult.uploadData.storagePath,
+          fileType: '.pdf',
           documentType: documentType,
+          fileHash: identificationResult.uploadData.fileHash
+        }),
+        signal: abortControllerRef.current.signal
+      });
+
+      const ocrResult = await ocrResponse.json();
+
+      if (!ocrResponse.ok || !ocrResult.success) {
+        throw new Error(ocrResult.error || 'Falha na extração OCR');
+      }
+
+      let extractedData;
+      
+      // Check if async processing was initiated
+      if (ocrResult.requestId) {
+        console.log('🔄 OCR async processing initiated:', ocrResult.requestId);
+        setProcessingStatus('Iniciando extração de dados...');
+        
+        // Poll for OCR status
+        const finalOCRResult = await pollForOCRStatus(ocrResult.requestId);
+        
+        if (!finalOCRResult.success) {
+          throw new Error('Extração OCR assíncrona falhou');
+        }
+        
+        extractedData = finalOCRResult.data;
+      } else {
+        // Synchronous result
+        extractedData = ocrResult.data;
+      }
+
+      console.log('✅ OCR extraction completed, processing data...');
+      setProcessingStatus('Processando dados extraídos...');
+
+      // Step 2: Send extracted data to process endpoint
+      const processResponse = await fetch('/api/documents/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          documentType: documentType,
+          extractedData: extractedData,
           fileHash: identificationResult.uploadData.fileHash,
-          originalFileName: identificationResult.uploadData.originalFileName
+          originalFileName: identificationResult.uploadData.originalFileName,
+          storagePath: identificationResult.uploadData.storagePath
         }),
         signal: abortControllerRef.current.signal
       });
@@ -347,6 +486,9 @@ export function UnknownDocumentModal({
       console.log('📊 [DEBUG] Save result:', saveResult);
       console.log('📊 [DEBUG] Document ID:', saveResult.documentId);
       setSavedDocumentId(saveResult.documentId);
+      
+      // Save extracted data for later use (especially for Proforma)
+      setSavedExtractedData(processResult.extractedData);
       
       // Update upload status
       if (identificationResult.uploadData.fileHash && saveResult.documentId) {
@@ -681,10 +823,13 @@ export function UnknownDocumentModal({
                       size="lg"
                     >
                       {isProcessing ? (
-                        <>
+                        <div className="flex items-center justify-center w-full">
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Processando...
-                        </>
+                          <span className="flex-1 text-left">
+                            {processingStatus || 'Processando...'}
+                            {processingProgress > 0 && ` (${Math.round(processingProgress)}%)`}
+                          </span>
+                        </div>
                       ) : (
                         <>
                           <FileText className="h-4 w-4 mr-2" />
@@ -694,6 +839,16 @@ export function UnknownDocumentModal({
                       )}
                     </Button>
                   )
+                )}
+
+                {/* Progress bar for async processing */}
+                {isProcessing && processingProgress > 0 && (
+                  <div className="w-full space-y-2">
+                    <Progress value={processingProgress} className="h-2" />
+                    <p className="text-xs text-zinc-400 text-center">
+                      {processingStatus || `Processando documento... ${Math.round(processingProgress)}%`}
+                    </p>
+                  </div>
                 )}
                 
                 <Button
@@ -720,6 +875,12 @@ export function UnknownDocumentModal({
                               ? `Processo ${result.processNumber} criado com sucesso!` 
                               : `Documento conectado ao processo ${result.processNumber} existente`
                           );
+                          
+                          // If it's a Proforma Invoice, update the process with its data
+                          if (identificationResult.identification.mappedType === 'proforma_invoice' && savedExtractedData && result.processId) {
+                            await updateProcessWithProformaData(result.processId, savedExtractedData);
+                          }
+                          
                           onOpenChange(false);
                           // Call refresh callback if provided
                           if (onSuccessfulAttachment) {
@@ -789,6 +950,12 @@ export function UnknownDocumentModal({
           // Call refresh callback if provided
           if (onSuccessfulAttachment) {
             onSuccessfulAttachment();
+          }
+        }}
+        onSuccessfulConnection={async (processId) => {
+          // If it's a Proforma Invoice, update the process with its data
+          if (identificationResult.identification.mappedType === 'proforma_invoice' && savedExtractedData) {
+            await updateProcessWithProformaData(processId, savedExtractedData);
           }
         }}
         onCreateNewProcess={() => {

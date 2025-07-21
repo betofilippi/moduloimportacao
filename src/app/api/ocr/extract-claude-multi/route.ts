@@ -262,8 +262,9 @@ export async function POST(request: NextRequest) {
       // Return job ID immediately for large files
       return NextResponse.json({
         success: true,
-        jobId: requestId,
-        message: 'Processamento iniciado. Use o jobId para verificar o status.',
+        requestId: requestId,  // Changed from jobId to requestId for consistency
+        status: 'processing',
+        message: 'Processamento iniciado. Use o requestId para verificar o status.',
         estimatedTime: `${Math.ceil(fileSizeMB / 2)}-${Math.ceil(fileSizeMB / 2) + 2} minutos`,
         statusEndpoint: `/api/ocr/extract-claude-multi/status?requestId=${requestId}`
       });

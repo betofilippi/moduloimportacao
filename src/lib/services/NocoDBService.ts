@@ -72,7 +72,9 @@ export class NocoDBService {
     recordId: string,
     data: Record<string, any>
   ): Promise<NocoDBRecord> {
-    const response = await this.api.patch(`/tables/${tableId}/records`, data);
+    // Include the ID in the data body
+    const updateData = { ...data, Id: recordId };
+    const response = await this.api.patch(`/tables/${tableId}/records`, updateData);
     return response.data;
   }
 
