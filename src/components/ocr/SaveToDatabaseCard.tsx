@@ -47,6 +47,11 @@ export function SaveToDatabaseCard({
   resetting = false
 }: SaveToDatabaseCardProps) {
   const [showResetDialog, setShowResetDialog] = useState(false);
+
+    console.log('😒dados Parametro Props componenete:',hasData )
+
+
+
   
   const getDocumentTypeLabel = (type: string | null) => {
     if (!type) return 'Nenhum documento';

@@ -13,7 +13,7 @@ interface ProcessoImportacaoListProps {
   className?: string;
 }
 
-export function ProcessoImportacaoList({
+export function ProcessoImportacaoList  ({
   processos,
   onProcessoClick,
   loading = false,

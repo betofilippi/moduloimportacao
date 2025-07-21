@@ -32,9 +32,17 @@ export function DocumentUploadForm({
 
   // Get available document types
   const allTypes = getAllDocumentTypeInfos();
-  const availableTypes = allowedTypes 
+  let availableTypes = allowedTypes 
     ? allTypes.filter(type => allowedTypes.includes(type.value))
     : allTypes;
+  
+  // If a defaultType is provided via URL, filter to show only that type
+  if (defaultType) {
+    const matchingType = availableTypes.find(type => type.value === defaultType);
+    if (matchingType) {
+      availableTypes = [matchingType];
+    }
+  }
 
   const handleFileSelect = (file: File) => {
     // Validate file type if document type is selected
@@ -148,6 +156,7 @@ export function DocumentUploadForm({
           success: true,
           data: uploadResult.data.structuredResult,
           hashFile: uploadResult.data.fileHash,
+          isAlreadySaved: uploadResult.data.isAlreadySaved || false,
           metadata: {
             documentType,
             processingTime: Date.now(),
@@ -157,7 +166,7 @@ export function DocumentUploadForm({
         };
 
         toast.success(uploadResult.data.message || 'Documento já processado! Dados recuperados do cache.');
-        onProcessComplete?.(result, documentType, true);
+        onProcessComplete?.(result, documentType, uploadResult.data.isAlreadySaved || false);
         return; // Exit without processing with Claude
       }
     
@@ -195,6 +204,7 @@ export function DocumentUploadForm({
         success: true,
         data: processResult.data,
         hashFile: uploadResult.data.fileHash, // Add the file hash from upload
+        isAlreadySaved: false, // New documents are not saved yet
         metadata: {
           documentType,
           processingTime: Date.now(),

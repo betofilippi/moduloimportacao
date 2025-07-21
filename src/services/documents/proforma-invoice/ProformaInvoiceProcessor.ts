@@ -117,49 +117,12 @@ export class ProformaInvoiceProcessor extends BaseDocumentProcessor {
    */
   private async executeStep(step: PromptStep, file: File): Promise<any> {
     try {
-      // This would integrate with existing Claude/OCR processing
-      // For now, return mock data based on step type
+      // This integrates with existing Claude/OCR processing
+      // The actual implementation would call the OCR service
+      // This is a placeholder that should be replaced with actual OCR integration
       
-      switch (step.step) {
-        case 1: // General data extraction
-          return {
-            contracted_company: "Mock Supplier Company Ltd",
-            contracted_email: "supplier@example.com",
-            date: "15/01/2024",
-            load_port: "Shanghai",
-            destination: "Santos",
-            total_price: 50000.00,
-            payment_terms: "30% advance, 70% before shipping",
-            package: "Standard carton packaging"
-          };
-        
-        case 2: // Items extraction
-          return [
-            {
-              item_number: 1,
-              item: "Electric Motor Model A",
-              description_in_english: "High efficiency electric motor",
-              description_in_chinese: "高效电动机",
-              specifications: "220V, 50Hz, 5HP",
-              quantity: 10,
-              unit_price: 500.00,
-              package: "Individual carton box"
-            },
-            {
-              item_number: 2,
-              item: "Control Panel CP-100",
-              description_in_english: "Digital control panel with LCD display",
-              description_in_chinese: "数字控制面板",
-              specifications: "LCD 7 inch, IP65",
-              quantity: 10,
-              unit_price: 250.00,
-              package: "Protected packaging"
-            }
-          ];
-        
-        default:
-          return {};
-      }
+      throw new Error('ProformaInvoiceProcessor.executeStep needs to be integrated with OCR service');
+      
     } catch (error) {
       this.log('error', `Error executing step ${step.step}`, { error });
       throw error;

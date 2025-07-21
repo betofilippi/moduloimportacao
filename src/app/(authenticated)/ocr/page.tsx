@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { DocumentUploadForm } from '@/components/documents/DocumentUploadForm';
 import { OCRResultsViewer } from '@/components/ocr/OCRResultsViewer';
 import { SaveToDatabaseCard } from '@/components/ocr/SaveToDatabaseCard';
@@ -13,12 +13,17 @@ import { FileText, CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import { useDocumentSave } from '@/hooks/useDocumentSave';
 import { getDocumentCacheService } from '@/lib/services/DocumentCacheService';
 import { getNocoDBService } from '@/lib/services/nocodb';
+import { getProcessDocumentService } from '@/lib/services/ProcessDocumentService';
+import { getProcessService } from '@/lib/services/ProcessService';
 import { NOCODB_TABLES } from '@/config/nocodb-tables';
 
 function OCRPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const documentTypeParam = searchParams.get('documentType');
   const fromParam = searchParams.get('from');
+  const stateParam = searchParams.get('state');
+  const processIdParam = searchParams.get('processId');
   
   const [processingResults, setProcessingResults] = useState<any>(null);
   const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType | null>(
@@ -32,6 +37,8 @@ function OCRPageContent() {
   const [resetting, setResetting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [pageOrigin, setPageOrigin] = useState<string | null>(fromParam);
+  const [processId, setProcessId] = useState<string | null>(processIdParam);
+  const [initialStateData, setInitialStateData] = useState<any>(null);
   
   // Hook para salvar no banco de dados
   const { 
@@ -55,20 +62,18 @@ function OCRPageContent() {
     lastSaveResult 
   } = useDocumentSave();
 
-  const handleProcessComplete = async (results: any, documentType: DocumentType, isFromCache: boolean) => {
+  const handleProcessComplete = async (results: any, documentType: DocumentType, isAlreadySavedInDB: boolean) => {
     setProcessingResults(results);
     setSelectedDocumentType(documentType);
-    console.log(results, documentType, isFromCache)
+    console.log(results, documentType, isAlreadySavedInDB)
     
     // Extract file hash from results
-    const isfileHash = isFromCache;
     const fileHash = results.hashFile;
     setCurrentFileHash(fileHash);
-    console.log('IF SEM O FROM CACHE', isfileHash, documentType)
-    // Check if document is already saved
-    if (isfileHash) {
-      setIsAlreadySaved(isFromCache);
-    }
+    
+    // Check if document is already saved in database
+    // isAlreadySavedInDB is true when document has status 'completo' (already saved in NocoDB)
+    setIsAlreadySaved(isAlreadySavedInDB || results.isAlreadySaved || false);
     
     if (results.success) {
       toast.success('Documento processado com sucesso!');
@@ -268,6 +273,50 @@ function OCRPageContent() {
           // Não exibir erro ao usuário pois o salvamento principal foi bem-sucedido
         }
       }
+      
+      // Link document to process with metadata if processId exists
+      if (processId && currentFileHash && selectedDocumentType) {
+        try {
+          const processDocService = getProcessDocumentService();
+          const linkResult = await processDocService.linkDocumentWithMetadata(
+            processId, 
+            currentFileHash,
+            selectedDocumentType,
+            result.documentId || ''
+          );
+          
+          if (linkResult.success) {
+            console.log(`Documento vinculado ao processo ${processId} com metadados`);
+          } else {
+            console.error('Erro ao vincular documento ao processo:', linkResult.error);
+          }
+        } catch (error) {
+          console.error('Erro ao vincular documento ao processo:', error);
+          // Don't break the main flow, just log the error
+        }
+      }
+      
+      // If coming from process creation, update process with proforma details
+      if (fromParam === 'new_process' && processId && selectedDocumentType === 'proforma_invoice') {
+        try {
+          const processService = getProcessService();
+          const updateResult = await processService.updateProcessWithProformaDetails(processId, processedData);
+          
+          if (updateResult.success) {
+            console.log('Processo atualizado com detalhes da Proforma Invoice');
+          } else {
+            console.error('Erro ao atualizar processo:', updateResult.error);
+          }
+        } catch (error) {
+          console.error('Erro ao atualizar processo com detalhes da proforma:', error);
+        }
+        
+        // Redirect back to process page after a short delay
+        toast.success('Documento salvo e vinculado ao processo!');
+        setTimeout(() => {
+          router.push('/processos');
+        }, 2000);
+      }
     }
   };
   
@@ -351,6 +400,23 @@ function OCRPageContent() {
       setLastSaveTime(new Date());
       setHasChanges(false);
       setOriginalData(processedData); // Update original data after successful update
+      
+      // Link document to process if processId exists (in case of updates)
+      if (processId && currentFileHash) {
+        try {
+          const processDocService = getProcessDocumentService();
+          const linkResult = await processDocService.linkDocumentToProcess(processId, currentFileHash);
+          
+          if (linkResult.success) {
+            console.log(`Documento atualizado e vinculado ao processo ${processId}`);
+          } else {
+            console.error('Erro ao vincular documento atualizado ao processo:', linkResult.error);
+          }
+        } catch (error) {
+          console.error('Erro ao vincular documento ao processo:', error);
+          // Don't break the main flow, just log the error
+        }
+      }
     }
   };
 
@@ -416,6 +482,62 @@ function OCRPageContent() {
 
   const formattedResults = processingResults ? formatResultsForViewer(processingResults) : null;
 
+  // Watch for processId changes from URL
+  useEffect(() => {
+    if (processIdParam && processIdParam !== processId) {
+      setProcessId(processIdParam);
+    }
+  }, [processIdParam]);
+
+  // Process state from URL if coming from process creation
+  useEffect(() => {
+    if (stateParam && fromParam === 'new_process') {
+      try {
+        const decodedState = JSON.parse(atob(stateParam));
+        if (decodedState.proformaData) {
+          // Parse the proforma data
+          const proformaData = JSON.parse(decodedState.proformaData);
+          
+          // Set up the results as if they came from normal processing
+          const results = {
+            success: true,
+            data: proformaData,
+            hashFile: decodedState.proformaHash,
+            isAlreadySaved: false,
+            metadata: {
+              documentType: DocumentType.PROFORMA_INVOICE,
+              fromProcess: true,
+              processId: decodedState.processId
+            }
+          };
+          
+          setProcessId(decodedState.processId);
+          setProcessingResults(results);
+          setSelectedDocumentType(DocumentType.PROFORMA_INVOICE);
+          setCurrentFileHash(decodedState.proformaHash);
+          setIsAlreadySaved(false);
+          
+          // Extract processed data
+          let dataToSet;
+          if (proformaData.structuredResult) {
+            dataToSet = proformaData.structuredResult;
+          } else if (proformaData.multiPrompt) {
+            dataToSet = proformaData;
+          } else {
+            dataToSet = proformaData;
+          }
+          
+          setProcessedData(dataToSet);
+          setOriginalData(dataToSet);
+          
+          toast.success('Dados da Proforma Invoice carregados. Pronto para salvar no banco.');
+        }
+      } catch (error) {
+        console.error('Error decoding state from URL:', error);
+      }
+    }
+  }, [stateParam, fromParam]);
+
   // Inicializa processedData quando os resultados mudam
   useEffect(() => {
     if (processingResults?.success && processingResults?.data) {
@@ -459,6 +581,18 @@ function OCRPageContent() {
             <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             <span className="text-sm text-blue-700 dark:text-blue-300">
               Processo de importação criado com sucesso! Agora faça o upload dos documentos.
+            </span>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Mostrar indicador se tem processo vinculado */}
+      {processId && pageOrigin !== 'new_process' && (
+        <Card className="mb-6 bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+          <CardContent className="flex items-center gap-2 py-3">
+            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <span className="text-sm text-green-700 dark:text-green-300">
+              Este documento será vinculado ao processo <strong>{processId}</strong>
             </span>
           </CardContent>
         </Card>

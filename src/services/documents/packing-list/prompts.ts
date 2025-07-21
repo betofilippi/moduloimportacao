@@ -104,14 +104,24 @@ Determinar from_item e to_item:
 from_item = menor número de item que intersecta o contêiner
 to_item = maior número de item que intersecta o contêiner
 
+Exemplo de caso de uso:
+
+temos 2 containers, cada um com 100 pacotes.
+temos 50 itens, cada um com dois pacotes.
+
+O primeiro container teria from_item = 1 e to_item=25, enquanto o segundo container teria from_item=26 até to_item=50.
+
+O mapeamento de itens nao pode anexar o mesmo item em mais de um container, visto que o calculo acima resolve todo nossos contextos.
 Use absolutamente todos os itens que foram obtidos aqui, com a mesma sequencia, sem excluir ou criar item algum.
+
+
 
 PASSO 5: VALIDAÇÃO FINAL
 
 Verificar consistência:
 
 Soma de quantidade_de_pacotes = Total de pacotes dos itens
-Não há gaps ou sobreposições nos ranges
+Não há gaps ou sobreposições nos ranges..
 Todos os itens estão mapeados em algum contêiner
 
 Extrair invoice: Procure por "INVOICE NO." no cabeçalho do documento
@@ -170,7 +180,7 @@ Os numeros de itens nao podem ser repetidos e devem ser sequenciais.
 NUNCA use aleatoriedade - os cálculos devem ser determinísticos
 SEMPRE valide que os totais batem antes de gerar a saída
 NÃO inclua texto explicativo, apenas o JSON puro
-USE brackets [] se houver múltiplos contêineres
+USE brackets [], independente de haver um ou mais containers.
 CALCULE matematicamente a disposição baseada na ordem sequencial dos itens
 
 Entregue apenas o Json sem comentários!`,

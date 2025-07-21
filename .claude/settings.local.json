@@ -6,7 +6,10 @@
       "Bash(grep:*)",
       "Bash(timeout 300 npm run build)",
       "Bash(mkdir:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

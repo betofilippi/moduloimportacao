@@ -67,7 +67,7 @@ export function ProcessoImportacaoModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh]">
+      <DialogContent className="bg-neutral-900 max-w-6xl max-h-[90vh]">
         <DialogHeader>
           <div className="flex items-start justify-between">
             <div className="space-y-2">

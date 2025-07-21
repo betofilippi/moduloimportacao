@@ -19,12 +19,14 @@ interface DocumentTypeSelectorProps {
   value: DocumentType | '';
   onChange: (value: DocumentType) => void;
   disabled?: boolean;
+  availableTypes?: DocumentTypeInfo[];
 }
 
 export function DocumentTypeSelector({
   value,
   onChange,
   disabled = false,
+  availableTypes = DOCUMENT_TYPES,
 }: DocumentTypeSelectorProps) {
   return (
     <div className="space-y-2 bg-amber-900">
@@ -42,7 +44,7 @@ export function DocumentTypeSelector({
           <SelectValue placeholder="Selecione o tipo de documento" />
         </SelectTrigger>
         <SelectContent>
-          {DOCUMENT_TYPES.map((type) => (
+          {availableTypes.map((type) => (
             <SelectItem key={type.value} value={type.value}>
               <div className="flex flex-col">
                 <span className="font-medium">{type.label}</span>

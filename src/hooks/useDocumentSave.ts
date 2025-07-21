@@ -256,6 +256,8 @@ export function useDocumentSave(): UseDocumentSaveReturn {
             description: "O documento pode ser processado novamente.",
           });
 
+
+           setLastSaveResult(null);
           // Save audit log
           await documentSaveService.saveAuditLog(
             "delete",

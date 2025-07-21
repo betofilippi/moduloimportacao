@@ -52,6 +52,11 @@ export const NOCODB_TABLES = {
     DOCUMENT_SAVES: "tbl_document_saves", // Track all save operations
     PROCESSING_LOGS: "tbl_processing_logs", // OCR processing history
   },
+
+
+
+  PROCESSOS_IMPORTACAO: "mny50szv4gbt195",
+  PROCESSO_DOCUMENTO_REL: "mkdkorw13nh2gd9" // Relacionamento processo-documento
 } as const;
 
 /**
@@ -59,6 +64,39 @@ export const NOCODB_TABLES = {
  * Maps document fields to NocoDB column names
  */
 export const TABLE_FIELD_MAPPINGS = {
+
+  PROCESSOS_IMPORTACAO:{
+  numero_processo: "numero_processo",
+  invoiceNumber: "invoiceNumber", 
+  numero_di: "numero_di",
+  empresa: "empresa",
+  cnpj_empresa: "cnpj_empresa",
+  responsavel: "responsavel",
+  email_responsavel: "email_responsavel",
+  data_inicio: "data_inicio",
+  data_conclusao: "data_conclusao",
+  status: "status",
+  valor_total_estimado: "valor_total_estimado",
+  moeda: "moeda",
+  porto_embarque: "porto_embarque",
+  porto_destino: "porto_destino",
+  condicoes_pagamento: "condicoes_pagamento",
+  proforma_invoice_id: "proforma_invoice_id",
+  proforma_invoice_doc_id: "proforma_invoice_doc_id",
+  descricao: "descricao",
+  documentsPipeline: "documentsPipeline"
+},
+
+  PROCESSO_DOCUMENTO_REL: {
+    processo_importacao: "processo_importacao",
+    hash_arquivo_upload: "hash_arquivo_upload"
+  },
+
+
+
+
+
+
   // DI Header Fields
   DI_HEADER: {
     numero_DI: "numero_DI",
@@ -171,31 +209,32 @@ export const TABLE_FIELD_MAPPINGS = {
 
   // Packing List Fields
   PACKING_LIST_HEADER: {
-    consignee: "destinatario",
-    contracted_company: "empresa_contratada",
-    contracted_email: "email_contratado",
-    date: "data",
-    destination: "destino",
-    invoice: "invoiceNumber",
-    items_qty_total: "quantidade_total_itens",
-    load_port: "porto_embarque",
-    notify_party: "parte_notificada",
-    package_total: "total_volumes",
-    total_gw: "peso_bruto_total"
+  destinatario: "consignee",
+  empresa_contratada: "contracted_company",
+  email_contratado: "contracted_email",
+  data: "date",
+  destino: "destination",
+  invoiceNumber: "invoice",
+  quantidade_total_itens: "items_qty_total",
+  porto_embarque: "load_port",
+  parte_notificada: "notify_party",
+  total_volumes: "package_total",
+  peso_bruto_total: "total_gw"
+
   },
 
     PACKING_LIST_CONTAINER: {
-        booking: "reserva",
-    container: "container",
-    from_item: "item_inicial",
-    from_package: "pacote_inicial",
-    invoice: "invoiceNumber",
-    peso_bruto: "peso_bruto",
-    quantidade_de_pacotes: "quantidade_volumes",
-    tipo_container: "tipo_container",
-    to_item: "item_final",
-    to_package: "pacote_final",
-    volume: "volume"
+  reserva: "booking",
+  container: "container",
+  item_inicial: "from_item",
+  pacote_inicial: "from_package",
+  invoiceNumber: "invoice",
+  peso_bruto: "peso_bruto",
+  quantidade_volumes: "quantidade_de_pacotes",
+  tipo_container: "tipo_container",
+  item_final: "to_item",
+  pacote_final: "to_package",
+  volume: "volume"
   },
 
   PACKING_LIST_ITEM: {
@@ -204,7 +243,7 @@ export const TABLE_FIELD_MAPPINGS = {
     container: "container",
     descricao_chines: "descricao_chines",
     descricao_ingles: "descricao_ingles",
-    item_number: "numero_item",
+    numero_item: "numero_item",
     largura_pacote: "largura_pacote",
     marcacao_do_pacote: "marcacao_pacote",
     peso_bruto_por_pacote: "peso_bruto_unitario",
@@ -429,13 +468,14 @@ export function transformToNocoDBFormat(
 ): Record<string, any> {
   const transformed: Record<string, any> = {};
 
-  // Simple mapping: dbField (key) -> docField (value)
-  for (const [dbField, docField] of Object.entries(fieldMapping)) {
-    console.log("Mapping", docField, "->", dbField);
+  // The mapping is englishField -> portugueseField
+  // We need to transform from english (source) to portuguese (target)
+  for (const [englishField, portugueseField] of Object.entries(fieldMapping)) {
+    console.log("Mapping", englishField, "->", portugueseField);
     
-    if (data.hasOwnProperty(docField)) {
-      transformed[dbField] = data[docField];
-      console.log("Mapped value:", data[docField]);
+    if (data.hasOwnProperty(englishField)) {
+      transformed[portugueseField] = data[englishField];
+      console.log("Mapped value:", data[englishField]);
     }
   }
   

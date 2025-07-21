@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
               fileHash: existingDoc.hashArquivo,
               userId: existingDoc.idUsuario,
               structuredResult: structuredResult,
+              isAlreadySaved: true, // Document with status 'completo' is already saved
               message: 'Documento já processado anteriormente. Dados recuperados do cache.'
             },
           });

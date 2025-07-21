@@ -537,28 +537,34 @@ export class DocumentSaveService {
       const { userId = 'system' } = options;
       const timestamp = new Date().toISOString();
 
+      console.log('SaveProformaInvoice - Input data:', JSON.stringify(data, null, 2));
+      console.log('SaveProformaInvoice - Header data:', data.header);
+
       // Prepare header data with proper field mapping
       const headerData = {
-        invoiceNumber: data.header?.invoice_number || ``, // Use extracted invoice number or generate
-        contracted_company: data.header?.contracted_company,
+        invoice_number: data.header?.invoice_number || data.header?.proforma_number || '',
+        contracted_company: data.header?.contracted_company || data.header?.seller,
         contracted_email: data.header?.contracted_email,
-        invoice_number: data.header?.invoice_number || '', // Include the actual invoice number field
-        date: data.header?.date,
+        date: data.header?.date || data.header?.invoice_date,
         load_port: data.header?.load_port,
         destination: data.header?.destination,
-        total_price: data.header?.total_price,
+        total_price: data.header?.total_price || data.header?.total_amount,
         payment_terms: data.header?.payment_terms,
         package: data.header?.package,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: userId,
       };
+      
+      console.log('SaveProformaInvoice - Prepared headerData:', headerData);
 
       // Transform to NocoDB format
       const transformedHeader = transformToNocoDBFormat(
         headerData,
         TABLE_FIELD_MAPPINGS.PROFORMA_INVOICE_HEADER
       );
+      
+      console.log('SaveProformaInvoice - Transformed header:', transformedHeader);
 
       // Add file hash
       if (options.fileHash) {
@@ -571,7 +577,7 @@ export class DocumentSaveService {
         transformedHeader
       );
 
-      const proformaNumber = savedHeader.invoice_number;
+      const proformaNumber = savedHeader.invoiceNumber || savedHeader.invoice_number || headerData.invoice_number;
 
       // Save items (from containers in proforma invoice)
       const savedItems = [];
@@ -607,6 +613,34 @@ export class DocumentSaveService {
             transformedItem
           );
           savedItems.push(savedItem);
+        }
+      }
+
+      // Update document upload status to complete if fileHash provided
+      if (options.fileHash) {
+        try {
+          const uploads = await this.nocodb.find(NOCODB_TABLES.UPLOADS, {
+            where: `(fileHash,eq,${options.fileHash})`,
+            limit: 1
+          });
+          
+          if (uploads.list.length > 0) {
+            await this.nocodb.update(
+              NOCODB_TABLES.UPLOADS,
+              uploads.list[0].Id,
+              {
+                statusProcessamento: 'completo',
+                dataProcessamento: timestamp,
+                resultadoProcessamento: JSON.stringify({
+                  documentId: proformaNumber,
+                  savedAt: timestamp
+                })
+              }
+            );
+          }
+        } catch (uploadError) {
+          console.error('Error updating upload status:', uploadError);
+          // Don't fail the save operation due to upload status update failure
         }
       }
 
