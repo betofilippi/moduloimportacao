@@ -2,13 +2,14 @@
 
 import * as React from "react"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Search, Filter, Download } from "lucide-react"
+import { Plus, Search, Filter, Download, FileQuestion } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProcessoImportacaoList } from "@/components/processo_import/ProcessoImportacaoList"
 import { ProcessoImportacaoModal } from "@/components/processo_import/ProcessoImportacaoModal"
 import { NovoProcessoModal } from "@/components/processo_import/NovoProcessoModal"
+import { UnknownDocumentModal } from "@/components/processo_import/UnknownDocumentModal"
 import { ProcessoImportacao, DocumentPipelineStatus } from "@/types/processo-importacao"
 import { useNocoDB } from "@/hooks/useNocoDB"
 import { NOCODB_TABLES, TABLE_FIELD_MAPPINGS } from "@/config/nocodb-tables"
@@ -21,6 +22,7 @@ export default function ProcessosPage() {
   const [selectedProcesso, setSelectedProcesso] = useState<ProcessoImportacao | null>(null)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [isNewProcessModalOpen, setIsNewProcessModalOpen] = useState(false)
+  const [isUnknownDocumentModalOpen, setIsUnknownDocumentModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const { find, create, update, remove } = useNocoDB(NOCODB_TABLES.PROCESSOS_IMPORTACAO)
@@ -247,6 +249,32 @@ export default function ProcessosPage() {
         </CardContent>
       </Card>
 
+      {/* Unknown Document Section */}
+      <Card className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border-purple-700/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileQuestion className="h-5 w-5 text-purple-400" />
+            Processar Documento Desconhecido
+          </CardTitle>
+          <CardDescription>
+            Tem um documento mas não sabe qual o tipo? Use nossa IA para identificar automaticamente
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            onClick={() => setIsUnknownDocumentModalOpen(true)}
+            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            size="lg"
+          >
+            <FileQuestion className="h-5 w-5 mr-2" />
+            Identificar Documento com IA
+          </Button>
+          <p className="text-xs text-muted-foreground mt-3 text-center">
+            Nossa IA analisa o documento, identifica o tipo e busca processos relacionados automaticamente
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Details Modal */}
       <ProcessoImportacaoModal
         processo={selectedProcesso}
@@ -262,6 +290,21 @@ export default function ProcessosPage() {
         open={isNewProcessModalOpen}
         onOpenChange={setIsNewProcessModalOpen}
         onSubmit={handleNewProcesso}
+      />
+
+      {/* Unknown Document Modal */}
+      <UnknownDocumentModal
+        open={isUnknownDocumentModalOpen}
+        onOpenChange={setIsUnknownDocumentModalOpen}
+        processos={processos}
+        onProcessSelect={(processId) => {
+          // Process selection is now handled within the modal
+          // which navigates directly to OCR page
+        }}
+        onCreateNewProcess={() => {
+          setIsUnknownDocumentModalOpen(false);
+          setIsNewProcessModalOpen(true);
+        }}
       />
     </div>
   )

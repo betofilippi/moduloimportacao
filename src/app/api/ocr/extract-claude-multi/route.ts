@@ -98,11 +98,13 @@ export async function POST(request: NextRequest) {
 
     // Validate document type for multi-prompt processing
     const supportedTypes: MultiPromptDocumentType[] = ['packing_list', 'commercial_invoice', 'proforma_invoice', 'swift', 'di', 'numerario', 'nota_fiscal'];
-    if (!supportedTypes.includes(documentType as MultiPromptDocumentType)) {
+    const isUnknown = documentType === 'unknown';
+    
+    if (!isUnknown && !supportedTypes.includes(documentType as MultiPromptDocumentType)) {
       return NextResponse.json(
         { 
           error: 'Tipo de documento não suportado para processamento multi-prompt', 
-          details: `Tipos suportados: ${supportedTypes.join(', ')}` 
+          details: `Tipos suportados: ${supportedTypes.join(', ')}, unknown` 
         },
         { status: 400 }
       );
@@ -140,79 +142,110 @@ export async function POST(request: NextRequest) {
         }
       };
       
-      // Process PDF with multiple prompts
-      const multiPromptResult = await extractDataWithMultiplePrompts(
-        fileBuffer, 
-        documentType as MultiPromptDocumentType,
-        onProgress
-      );
+      // Process PDF - handle unknown type specially
+      let result;
+      if (isUnknown) {
+        // For unknown documents, use single-step extraction with identification prompt
+        const { extractDataFromPDF } = await import('@/services/ocr/claudePDF');
+        const ocrResult = await extractDataFromPDF(fileBuffer, 'unknown' as any);
+        
+        // Format result to match multi-prompt structure
+        result = {
+          success: true,
+          data: {
+            extractedData: ocrResult.extractedData,
+            rawText: ocrResult.text,
+            cleanedText: ocrResult.text,
+            ocrResults: [{
+              page: 1,
+              text: ocrResult.text,
+              method: 'claude-unknown-identification',
+              confidence: ocrResult.confidence,
+              language: 'pt-BR'
+            }],
+            totalPages: ocrResult.totalPages,
+            storagePath,
+            documentType,
+            metadata: ocrResult.metadata
+          }
+        };
+      } else {
+        // Process PDF with multiple prompts for known types
+        const multiPromptResult = await extractDataWithMultiplePrompts(
+          fileBuffer, 
+          documentType as MultiPromptDocumentType,
+          onProgress
+        );
+        
+        // Update progress steps with results
+        multiPromptResult.steps.forEach(stepResult => {
+          const progressStep = progressSteps.find(p => p.step === stepResult.step);
+          if (progressStep) {
+            progressStep.completed = true;
+            progressStep.result = stepResult.result;
+          } else {
+            progressSteps.push({
+              step: stepResult.step,
+              stepName: stepResult.stepName,
+              stepDescription: stepResult.stepDescription,
+              completed: true,
+              result: stepResult.result
+            });
+          }
+        });
 
-      // Update progress steps with results
-      multiPromptResult.steps.forEach(stepResult => {
-        const progressStep = progressSteps.find(p => p.step === stepResult.step);
-        if (progressStep) {
-          progressStep.completed = true;
-          progressStep.result = stepResult.result;
-        } else {
-          progressSteps.push({
-            step: stepResult.step,
-            stepName: stepResult.stepName,
-            stepDescription: stepResult.stepDescription,
-            completed: true,
-            result: stepResult.result
-          });
-        }
-      });
+        // Format response to match existing API structure but with multi-prompt data
+        result = {
+          success: true,
+          data: {
+            // Multi-prompt specific data
+            multiPrompt: {
+              documentType: multiPromptResult.documentType,
+              totalSteps: multiPromptResult.totalSteps,
+              steps: multiPromptResult.steps,
+              progressSteps: progressSteps.sort((a, b) => a.step - b.step),
+            },
+            
+            // New structured data from each step
+            structuredResult: multiPromptResult.finalResult.structuredResult,
+            
+            // Final extracted data (backward compatibility)
+            extractedData: multiPromptResult.finalResult.extractedData,
+            rawText: multiPromptResult.finalResult.rawText,
+            
+            // For compatibility with existing frontend
+            cleanedText: multiPromptResult.finalResult.rawText,
+            
+            // OCR metadata (adapted for multi-prompt)
+            ocrResults: multiPromptResult.steps.map((step, index) => ({
+              page: index + 1,
+              text: step.result,
+              method: `claude-multi-prompt-step-${step.step}`,
+              confidence: 0.95,
+              language: 'pt-BR',
+              stepName: step.stepName,
+              stepDescription: step.stepDescription,
+            })),
+            
+            // Document metadata
+            totalPages: 1, // Will be calculated if needed
+            storagePath,
+            documentType,
+            
+            // Processing metadata
+            metadata: {
+              model: 'claude-4-sonnet-20250514',
+              processingTime: multiPromptResult.metadata.totalProcessingTime,
+              tokenUsage: multiPromptResult.metadata.totalTokenUsage,
+              multiPrompt: true,
+              stepsCompleted: multiPromptResult.totalSteps,
+              requestId,
+            },
+          },
+        };
+      }
 
-      // Format response to match existing API structure but with multi-prompt data
-      return {
-        success: true,
-        data: {
-          // Multi-prompt specific data
-          multiPrompt: {
-            documentType: multiPromptResult.documentType,
-            totalSteps: multiPromptResult.totalSteps,
-            steps: multiPromptResult.steps,
-            progressSteps: progressSteps.sort((a, b) => a.step - b.step),
-          },
-          
-          // New structured data from each step
-          structuredResult: multiPromptResult.finalResult.structuredResult,
-          
-          // Final extracted data (backward compatibility)
-          extractedData: multiPromptResult.finalResult.extractedData,
-          rawText: multiPromptResult.finalResult.rawText,
-          
-          // For compatibility with existing frontend
-          cleanedText: multiPromptResult.finalResult.rawText,
-          
-          // OCR metadata (adapted for multi-prompt)
-          ocrResults: multiPromptResult.steps.map((step, index) => ({
-            page: index + 1,
-            text: step.result,
-            method: `claude-multi-prompt-step-${step.step}`,
-            confidence: 0.95,
-            language: 'pt-BR',
-            stepName: step.stepName,
-            stepDescription: step.stepDescription,
-          })),
-          
-          // Document metadata
-          totalPages: 1, // Will be calculated if needed
-          storagePath,
-          documentType,
-          
-          // Processing metadata
-          metadata: {
-            model: 'claude-4-sonnet-20250514',
-            processingTime: multiPromptResult.metadata.totalProcessingTime,
-            tokenUsage: multiPromptResult.metadata.totalTokenUsage,
-            multiPrompt: true,
-            stepsCompleted: multiPromptResult.totalSteps,
-            requestId,
-          },
-        },
-      };
+      return result;
     })();
 
     // Store the processing promise in the active requests map

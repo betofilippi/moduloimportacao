@@ -24,6 +24,8 @@ function OCRPageContent() {
   const fromParam = searchParams.get('from');
   const stateParam = searchParams.get('state');
   const processIdParam = searchParams.get('processId');
+  const fromUnknownParam = searchParams.get('fromUnknown');
+  const invoiceNumberParam = searchParams.get('invoiceNumber');
   
   const [processingResults, setProcessingResults] = useState<any>(null);
   const [selectedDocumentType, setSelectedDocumentType] = useState<DocumentType | null>(
@@ -586,6 +588,21 @@ function OCRPageContent() {
         </Card>
       )}
       
+      {/* Mostrar indicador se veio da identificação de documento desconhecido */}
+      {fromUnknownParam === 'true' && (
+        <Card className="mb-6 bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
+          <CardContent className="flex items-center gap-2 py-3">
+            <FileText className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <span className="text-sm text-purple-700 dark:text-purple-300">
+              Documento identificado como <strong>{documentTypeParam}</strong> pela IA.
+              {invoiceNumberParam && (
+                <> Número de referência encontrado: <strong>{invoiceNumberParam}</strong></>  
+              )}
+            </span>
+          </CardContent>
+        </Card>
+      )}
+      
       {/* Mostrar indicador se tem processo vinculado */}
       {processId && pageOrigin !== 'new_process' && (
         <Card className="mb-6 bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
@@ -593,6 +610,9 @@ function OCRPageContent() {
             <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
             <span className="text-sm text-green-700 dark:text-green-300">
               Este documento será vinculado ao processo <strong>{processId}</strong>
+              {fromParam === 'unknown_document' && (
+                <> após o processamento</>  
+              )}
             </span>
           </CardContent>
         </Card>

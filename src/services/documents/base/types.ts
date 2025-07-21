@@ -10,6 +10,7 @@ export enum DocumentType {
   NOTA_FISCAL = 'nota_fiscal',
   CI = 'ci',
   AFRMM = 'afrmm',
+  UNKNOWN = 'unknown',
 }
 
 export interface DocumentTypeInfo {

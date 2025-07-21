@@ -12,6 +12,12 @@ import { documentProcessorFactory } from '@/services/documents';
  * @returns The prompt string for the document type
  */
 export function getDocumentPrompt(documentType: DocumentType): string {
+  // Special handling for unknown documents
+  if (documentType === DocumentType.UNKNOWN || documentType === 'unknown') {
+    const { documentIdentificationPrompt } = require('@/services/documents/unknown/prompts');
+    return documentIdentificationPrompt;
+  }
+  
   try {
     const processor = documentProcessorFactory.getProcessor(documentType);
     const prompts = processor.getPrompts();

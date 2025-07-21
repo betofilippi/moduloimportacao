@@ -44,6 +44,11 @@ export * from './nota-fiscal/types';
 export * from './nota-fiscal/NotaFiscalProcessor';
 export * from './nota-fiscal/NotaFiscalValidator';
 
+// Unknown Document (for auto-identification)
+export * from './unknown/types';
+export * from './unknown/UnknownProcessor';
+export * from './unknown/UnknownValidator';
+
 // Auto-register processors
 import { documentProcessorFactory } from './DocumentProcessorFactory';
 import { PackingListProcessor } from './packing-list/PackingListProcessor';
@@ -53,6 +58,7 @@ import { SwiftProcessor } from './swift/SwiftProcessor';
 import { DIProcessor } from './di/DIProcessor';
 import { NumerarioProcessor } from './numerario/NumerarioProcessor';
 import { NotaFiscalProcessor } from './nota-fiscal/NotaFiscalProcessor';
+import { UnknownDocumentProcessor } from './unknown/UnknownProcessor';
 import { DocumentType } from './base/types';
 
 /**
@@ -90,6 +96,10 @@ export function initializeDocumentProcessors(): void {
     // Register Nota Fiscal processor
     const notaFiscalProcessor = new NotaFiscalProcessor();
     documentProcessorFactory.register(DocumentType.NOTA_FISCAL, notaFiscalProcessor);
+
+    // Register Unknown Document processor (for auto-identification)
+    const unknownProcessor = new UnknownDocumentProcessor();
+    documentProcessorFactory.register(DocumentType.UNKNOWN, unknownProcessor);
 
     // TODO: Register other processors as they are implemented
     // documentProcessorFactory.register(DocumentType.BILL_OF_LADING, new BillOfLadingProcessor());

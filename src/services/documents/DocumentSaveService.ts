@@ -48,6 +48,19 @@ export class DocumentSaveService {
   }
 
   /**
+   * Extract data from multi-step or direct structure
+   * Handles both { data: actualData } and direct data formats
+   */
+  private extractData(data: any, fallback: any = null): any {
+    // If data has .data property, extract it
+    if (data && data.data !== undefined) {
+      return data.data;
+    }
+    // Otherwise return the data itself or fallback
+    return data || fallback;
+  }
+
+  /**
    * Reset document data by deleting all related records
    */
   async resetDocumentData(fileHash: string, documentType: string): Promise<SaveResult> {
@@ -213,9 +226,13 @@ export class DocumentSaveService {
       const timestamp = new Date().toISOString();
       console.log('LOG DATA NOCODB INSERT DI')
       console.log(data)
+      
+      // Extract header data - handle multi-step structure
+      const extractedHeader = this.extractData(data.header, {});
+      
       // Prepare header data
       const headerData = {
-        ...data.header,
+        ...extractedHeader,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: userId,
@@ -244,10 +261,11 @@ export class DocumentSaveService {
 
       const numeroDI = savedHeader.numero_di;
 
-      // Save items
+      // Extract and save items
+      const itemsArray = this.extractData(data.items, []);
       const savedItems = [];
-      if (data.items && data.items.length > 0) {
-        for (const item of data.items) {
+      if (Array.isArray(itemsArray) && itemsArray.length > 0) {
+        for (const item of itemsArray) {
           const itemData = {
             ...item,
             numeroDI,
@@ -270,10 +288,11 @@ export class DocumentSaveService {
           savedItems.push(savedItem);
         }
       }
-      // Save tax info
-            const savedTaxInfo = [];
-            if (data.taxInfo && data.taxInfo.length > 0) {
-        for (const item of data.taxInfo) {
+      // Extract and save tax info
+      const taxInfoArray = this.extractData(data.taxInfo, []);
+      const savedTaxInfo = [];
+      if (Array.isArray(taxInfoArray) && taxInfoArray.length > 0) {
+        for (const item of taxInfoArray) {
           const itemData = {
             ...item,
             numeroDI,
@@ -322,12 +341,11 @@ export class DocumentSaveService {
    */
   async saveCommercialInvoice(data: CommercialInvoiceProcessingResult, options: SaveOptions = {}): Promise<SaveResult> {
     try {
-    console.log("INICIADO SABER COMEMRCIAL", data)        
-      // Prepare header data
-      const headerData = {
-      ...data.header,
-      };
-      console.log('DADOS HEADER',headerData)
+      console.log("INICIADO SAVE COMMERCIAL", data);
+      
+      // Extract header data - handle multi-step structure
+      const headerData = this.extractData(data.header, data);
+      console.log('DADOS HEADER EXTRAÍDOS:', headerData);
       // Transform to NocoDB format
       const transformedHeader = transformToNocoDBFormat(
         headerData,
@@ -349,11 +367,15 @@ export class DocumentSaveService {
 
       const invoiceNumber = savedHeader.invoice_number;
 
+      // Extract items - handle multi-step structure
+      const itemsArray = this.extractData(data.items, []);
+      console.log(`ITEMS EXTRAÍDOS: ${Array.isArray(itemsArray) ? itemsArray.length : 0} items`);
+
       // Save items
       const savedItems = [];
-      if (data.items && data.items.length > 0) {
-        for (let i = 0; i < data.items.length; i++) {
-          const item = data.items[i];
+      if (itemsArray.length > 0) {
+        for (let i = 0; i < itemsArray.length; i++) {
+          const item = itemsArray[i];
           const itemData = {
             invoiceNumber,
             lineNumber: i + 1,
@@ -400,19 +422,22 @@ export class DocumentSaveService {
       const { userId = 'system' } = options;
       const timestamp = new Date().toISOString();
 
+      // Extract header data - handle multi-step structure
+      const extractedHeader = this.extractData(data.header, {});
+      
       // Prepare header data using the correct field mappings
       const headerData = {
-        consignee: data.header?.consignee,
-        contracted_company: data.header?.contracted_company,
-        contracted_email: data.header?.contracted_email,
-        date: data.header?.date,
-        destination: data.header?.destination,
-        invoice: data.header?.invoice,
-        items_qty_total: data.header?.items_qty_total,
-        load_port: data.header?.load_port,
-        notify_party: data.header?.notify_party,
-        package_total: data.header?.package_total,
-        total_gw: data.header?.total_gw
+        consignee: extractedHeader.consignee,
+        contracted_company: extractedHeader.contracted_company,
+        contracted_email: extractedHeader.contracted_email,
+        date: extractedHeader.date,
+        destination: extractedHeader.destination,
+        invoice: extractedHeader.invoice,
+        items_qty_total: extractedHeader.items_qty_total,
+        load_port: extractedHeader.load_port,
+        notify_party: extractedHeader.notify_party,
+        package_total: extractedHeader.package_total,
+        total_gw: extractedHeader.total_gw
       };
 
       // Transform to NocoDB format
@@ -434,10 +459,11 @@ export class DocumentSaveService {
 
       const invoiceNumber = savedHeader.invoiceNumber || savedHeader.invoice;
 
-      // Save containers
+      // Extract and save containers
+      const containersArray = this.extractData(data.containers, []);
       const savedContainers = [];
-      if (data.containers && data.containers.length > 0) {
-        for (const container of data.containers) {
+      if (Array.isArray(containersArray) && containersArray.length > 0) {
+        for (const container of containersArray) {
           const containerData = {
             booking: container.booking,
             container: container.container,
@@ -469,10 +495,11 @@ export class DocumentSaveService {
         }
       }
 
-      // Save items
+      // Extract and save items
+      const itemsArray = this.extractData(data.items_por_container || data.items, []);
       const savedItems = [];
-      if (data.items_por_container && data.items_por_container.length > 0) {
-        for (const item of data.items_por_container) {
+      if (Array.isArray(itemsArray) && itemsArray.length > 0) {
+        for (const item of itemsArray) {
           const itemData = {
             altura_pacote: item.altura_pacote,
             comprimento_pacote: item.comprimento_pacote,
@@ -538,19 +565,22 @@ export class DocumentSaveService {
       const timestamp = new Date().toISOString();
 
       console.log('SaveProformaInvoice - Input data:', JSON.stringify(data, null, 2));
-      console.log('SaveProformaInvoice - Header data:', data.header);
+      
+      // Extract header data - handle multi-step structure
+      const extractedHeader = this.extractData(data.header, {});
+      console.log('SaveProformaInvoice - Extracted header:', extractedHeader);
 
       // Prepare header data with proper field mapping
       const headerData = {
-        invoice_number: data.header?.invoice_number || data.header?.proforma_number || '',
-        contracted_company: data.header?.contracted_company || data.header?.seller,
-        contracted_email: data.header?.contracted_email,
-        date: data.header?.date || data.header?.invoice_date,
-        load_port: data.header?.load_port,
-        destination: data.header?.destination,
-        total_price: data.header?.total_price || data.header?.total_amount,
-        payment_terms: data.header?.payment_terms,
-        package: data.header?.package,
+        invoice_number: extractedHeader.invoice_number || extractedHeader.proforma_number || '',
+        contracted_company: extractedHeader.contracted_company || extractedHeader.seller,
+        contracted_email: extractedHeader.contracted_email,
+        date: extractedHeader.date || extractedHeader.invoice_date,
+        load_port: extractedHeader.load_port,
+        destination: extractedHeader.destination,
+        total_price: extractedHeader.total_price || extractedHeader.total_amount,
+        payment_terms: extractedHeader.payment_terms,
+        package: extractedHeader.package,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: userId,
@@ -579,9 +609,9 @@ export class DocumentSaveService {
 
       const proformaNumber = savedHeader.invoiceNumber || savedHeader.invoice_number || headerData.invoice_number;
 
-      // Save items (from containers in proforma invoice)
+      // Extract and save items (from containers in proforma invoice)
       const savedItems = [];
-      const itemsArray = data.containers || data.items || [];
+      const itemsArray = this.extractData(data.containers || data.items, []);
       if (itemsArray.length > 0) {
         for (let i = 0; i < itemsArray.length; i++) {
           const item = itemsArray[i];
@@ -714,8 +744,8 @@ export class DocumentSaveService {
    * Prepare Swift data for saving by flattening nested structure
    */
   private prepareSwiftData(data: SwiftData): Record<string, any> {
-    // Extract the actual data (could be in header or root level)
-    const swiftInfo = data.header || data;
+    // Extract the actual data - handle multiple possible structures
+    const swiftInfo = this.extractData(data.header, data);
     
     // Flatten the nested structure
     return this.flattenSwiftData(swiftInfo);
@@ -782,16 +812,20 @@ console.log('depois de preparar',preparedData);
     console.log('🔍 prepareNumerarioData - full data:', data);
     console.log('🔍 prepareNumerarioData - data keys:', Object.keys(data));
     
-    // Extract data from diInfo (where OCR data is stored)
-    const numerarioInfo = data.diInfo || data;
+    // Extract data from multi-step structure
+    const diInfo = this.extractData(data.diInfo, {});
+    const header = this.extractData(data.header, {});
+    const items = this.extractData(data.items, []);
     
-    console.log('📦 numerarioInfo extracted:', numerarioInfo);
-    console.log('📦 numerarioInfo keys:', numerarioInfo ? Object.keys(numerarioInfo) : 'null');
+    console.log('📦 Extracted data - diInfo:', diInfo);
+    console.log('📦 Extracted data - header:', header);
+    console.log('📦 Extracted data - items count:', Array.isArray(items) ? items.length : 0);
     
-    // Return OCR data as-is, adding only fileHash and audit fields
-    // The transformToNocoDBFormat will handle the field mapping
+    // Merge all relevant data
     const preparedData = {
-      ...numerarioInfo,
+      ...diInfo,
+      ...header,
+      items: items,
       hash_arquivo_origem: data.fileHash || data.hash_arquivo_origem || '',
       criado_por: data.userId || 'sistema',
       atualizado_por: data.userId || 'sistema'
@@ -1517,9 +1551,12 @@ console.log('depois de preparar',preparedData);
 
       console.log('🔵 Saving Nota Fiscal - data:', data);
 
+      // Extract header data - handle multi-step structure
+      const extractedHeader = this.extractData(data.header, {});
+      
       // Prepare header data
       const headerData = {
-        ...data.header,
+        ...extractedHeader,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: userId,
@@ -1545,12 +1582,13 @@ console.log('depois de preparar',preparedData);
       console.log('✅ Saved Nota Fiscal header:', savedHeader);
 
       const invoiceNumber = savedHeader.invoiceNumber || savedHeader.numeroNF;
-      const chaveAcesso = savedHeader.chaveAcesso || data.header.chave_acesso || '';
+      const chaveAcesso = savedHeader.chaveAcesso || extractedHeader.chave_acesso || '';
 
-      // Save items
+      // Extract and save items
+      const itemsArray = this.extractData(data.items, []);
       const savedItems = [];
-      if (data.items && data.items.length > 0) {
-        for (const item of data.items) {
+      if (Array.isArray(itemsArray) && itemsArray.length > 0) {
+        for (const item of itemsArray) {
           const itemData = {
             ...item,
             invoiceNumber: invoiceNumber,

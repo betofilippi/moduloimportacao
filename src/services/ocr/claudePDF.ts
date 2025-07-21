@@ -48,7 +48,8 @@ export async function extractDataFromPDF(
     // Get the appropriate prompt for the document type
     const prompt = getDocumentPrompt(documentType);
     
-    console.log('prompt', prompt)
+    console.log('Processing document type:', documentType);
+    console.log('Prompt:', prompt);
 
     console.log(`Processing PDF with Claude for document type: ${documentType}`);
     
@@ -103,9 +104,15 @@ export async function extractDataFromPDF(
       }
       
       // Claude's response should be in JSON format based on our prompt
-      const parsedResponse = JSON.parse(cleanedResponse);
-      extractedData = parsedResponse.extractedData || {};
-      fullText = parsedResponse.fullText || '';
+      // For unknown document type, the response is the classification result itself
+      if (documentType === 'unknown' || documentType === DocumentType.UNKNOWN) {
+        extractedData = JSON.parse(cleanedResponse);
+        fullText = JSON.stringify(extractedData, null, 2);
+      } else {
+        const parsedResponse = JSON.parse(cleanedResponse);
+        extractedData = parsedResponse.extractedData || {};
+        fullText = parsedResponse.fullText || '';
+      }
     } catch (parseError) {
       console.error('Error parsing Claude response as JSON:', parseError);
       console.error('Raw response:', claudeResponse.text);
