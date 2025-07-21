@@ -18,7 +18,6 @@ export default function ProcessoImportacaoPage() {
   const [showNovoModal, setShowNovoModal] = useState(false);
   const [showProcessoModal, setShowProcessoModal] = useState(false);
 
-  // Mock data for development - replace with actual NocoDB integration
   useEffect(() => {
     loadProcessos();
   }, []);
@@ -26,62 +25,42 @@ export default function ProcessoImportacaoPage() {
   const loadProcessos = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with actual NocoDB query
-      // const nocodb = getNocoDBService();
-      // const result = await nocodb.find('processo_importacao_table_id');
-      
-      // Mock data for now
-      const mockProcessos: ProcessoImportacao[] = [
-        {
-          id: '1',
-          numeroProcesso: 'IMP-2024-001',
-          descricao: 'Importação de equipamentos eletrônicos da China',
-          empresa: 'Tech Import Ltda',
-          dataInicio: '2024-01-15',
-          dataPrevisaoTermino: '2024-02-15',
-          status: 'active',
-          responsavel: 'João Silva',
-          observacoes: 'Processo em andamento conforme cronograma',
-          documentsPipeline: [
-            { documentType: 'proforma_invoice' as DocumentType, status: 'completed', processedAt: '2024-01-16' },
-            { documentType: 'commercial_invoice' as DocumentType, status: 'completed', processedAt: '2024-01-18' },
-            { documentType: 'packing_list' as DocumentType, status: 'completed', processedAt: '2024-01-18' },
-            { documentType: 'swift' as DocumentType, status: 'processing' },
-            { documentType: 'di' as DocumentType, status: 'pending' },
-            { documentType: 'numerario' as DocumentType, status: 'pending' },
-            { documentType: 'nota_fiscal' as DocumentType, status: 'not_applicable' },
-          ],
-          createdAt: '2024-01-15',
-          updatedAt: '2024-01-20',
-          createdBy: 'admin',
-        },
-        {
-          id: '2',
-          numeroProcesso: 'IMP-2024-002',
-          descricao: 'Importação de matéria-prima têxtil',
-          empresa: 'Textil Brasil SA',
-          dataInicio: '2024-01-20',
-          status: 'active',
-          responsavel: 'Maria Santos',
-          documentsPipeline: [
-            { documentType: 'proforma_invoice' as DocumentType, status: 'completed' },
-            { documentType: 'commercial_invoice' as DocumentType, status: 'error', error: 'Valor divergente' },
-            { documentType: 'packing_list' as DocumentType, status: 'pending' },
-            { documentType: 'swift' as DocumentType, status: 'pending' },
-            { documentType: 'di' as DocumentType, status: 'pending' },
-            { documentType: 'numerario' as DocumentType, status: 'pending' },
-            { documentType: 'nota_fiscal' as DocumentType, status: 'pending' },
-          ],
-          createdAt: '2024-01-20',
-          updatedAt: '2024-01-21',
-          createdBy: 'admin',
-        },
-      ];
+      const response = await fetch('/api/processo-importacao/list', {
+        method: 'GET',
+      });
 
-      setProcessos(mockProcessos);
+      if (!response.ok) {
+        throw new Error('Failed to load processes');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Convert backend data to frontend format
+        const formattedProcessos: ProcessoImportacao[] = data.processes.map((p: any) => ({
+          id: p.Id,
+          numeroProcesso: p.numero_processo,
+          descricao: p.descricao || '',
+          empresa: p.empresa,
+          dataInicio: p.data_inicio,
+          dataPrevisaoTermino: p.data_previsao_termino,
+          status: p.status || 'active',
+          responsavel: p.responsavel,
+          observacoes: p.observacoes,
+          documentsPipeline: [], // This will be loaded by the card component
+          createdAt: p.criado_em || p.data_inicio,
+          updatedAt: p.atualizado_em || p.data_inicio,
+          createdBy: p.criado_por || 'sistema',
+        }));
+        
+        setProcessos(formattedProcessos);
+      } else {
+        throw new Error(data.error || 'Failed to load processes');
+      }
     } catch (error) {
       console.error('Error loading processos:', error);
       toast.error('Erro ao carregar processos');
+      setProcessos([]); // Set empty array on error
     } finally {
       setLoading(false);
     }

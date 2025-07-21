@@ -43,6 +43,7 @@ interface UnknownDocumentModalProps {
   processos: ProcessoImportacao[];
   onProcessSelect: (processId: string) => void;
   onCreateNewProcess: () => void;
+  onSuccessfulAttachment?: () => void;
 }
 
 interface IdentificationResult {
@@ -74,7 +75,8 @@ export function UnknownDocumentModal({
   onOpenChange,
   processos,
   onProcessSelect,
-  onCreateNewProcess
+  onCreateNewProcess,
+  onSuccessfulAttachment
 }: UnknownDocumentModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -98,6 +100,9 @@ export function UnknownDocumentModal({
   
   // Track if document has been processed
   const [isDocumentProcessed, setIsDocumentProcessed] = useState(false);
+  
+  // AbortController for API requests
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Reset state when modal closes
   React.useEffect(() => {
@@ -113,6 +118,11 @@ export function UnknownDocumentModal({
       processingRef.current = false; // Reset processing ref
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
+      }
+      // Abort any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
     }
   }, [open]);
@@ -273,6 +283,14 @@ export function UnknownDocumentModal({
     processingRef.current = true;
     setIsProcessing(true);
     
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new AbortController
+    abortControllerRef.current = new AbortController();
+    
     try {
       // Call process endpoint
       const processResponse = await fetch('/api/documents/process', {
@@ -285,7 +303,8 @@ export function UnknownDocumentModal({
           documentType: documentType,
           fileHash: identificationResult.uploadData.fileHash,
           originalFileName: identificationResult.uploadData.originalFileName
-        })
+        }),
+        signal: abortControllerRef.current.signal
       });
 
       const processResult = await processResponse.json();
@@ -308,7 +327,8 @@ export function UnknownDocumentModal({
             originalFileName: identificationResult.uploadData.originalFileName,
             storagePath: identificationResult.uploadData.storagePath
           }
-        })
+        }),
+        signal: abortControllerRef.current.signal
       });
 
       const saveResult = await saveResponse.json();
@@ -369,8 +389,13 @@ export function UnknownDocumentModal({
       
       // Don't close modal - show process selection instead
     } catch (error) {
-      console.error('Error processing document:', error);
-      toast.error(`Erro ao processar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      // Ignore abort errors
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Request was aborted');
+      } else {
+        console.error('Error processing document:', error);
+        toast.error(`Erro ao processar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      }
     } finally {
       setIsProcessing(false);
       processingRef.current = false; // Reset ref
@@ -696,6 +721,10 @@ export function UnknownDocumentModal({
                               : `Documento conectado ao processo ${result.processNumber} existente`
                           );
                           onOpenChange(false);
+                          // Call refresh callback if provided
+                          if (onSuccessfulAttachment) {
+                            onSuccessfulAttachment();
+                          }
                         } else {
                           throw new Error(result.error || 'Falha ao criar processo');
                         }
@@ -757,6 +786,10 @@ export function UnknownDocumentModal({
           toast.success(`Documento conectado ao processo ${processId}`);
           onProcessSelect(processId);
           onOpenChange(false);
+          // Call refresh callback if provided
+          if (onSuccessfulAttachment) {
+            onSuccessfulAttachment();
+          }
         }}
         onCreateNewProcess={() => {
           setShowProcessSelection(false);

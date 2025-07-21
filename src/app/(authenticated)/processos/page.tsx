@@ -305,6 +305,10 @@ export default function ProcessosPage() {
           setIsUnknownDocumentModalOpen(false);
           setIsNewProcessModalOpen(true);
         }}
+        onSuccessfulAttachment={() => {
+          // Refresh process list after successful attachment
+          loadProcessos();
+        }}
       />
     </div>
   )
