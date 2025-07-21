@@ -95,6 +95,9 @@ export function UnknownDocumentModal({
   
   // Add ref for processing control to prevent double execution
   const processingRef = useRef(false);
+  
+  // Track if document has been processed
+  const [isDocumentProcessed, setIsDocumentProcessed] = useState(false);
 
   // Reset state when modal closes
   React.useEffect(() => {
@@ -106,6 +109,7 @@ export function UnknownDocumentModal({
       setSelectedProcessId(null);
       setAutoProcessCountdown(0);
       setIsAutoProcessPaused(false);
+      setIsDocumentProcessed(false); // Reset processed state
       processingRef.current = false; // Reset processing ref
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
@@ -119,7 +123,8 @@ export function UnknownDocumentModal({
       identificationResult?.nextStep.shouldProcess &&
       autoProcessCountdown > 0 &&
       !isAutoProcessPaused &&
-      !processingRef.current // Use ref instead of state
+      !processingRef.current && // Use ref instead of state
+      !isDocumentProcessed // Don't countdown if already processed
     ) {
       countdownInterval.current = setInterval(() => {
         setAutoProcessCountdown((prev) => {
@@ -219,6 +224,13 @@ export function UnknownDocumentModal({
     documentType: string
   ) => {
     try {
+      console.log('🔍 [DEBUG] searchRelatedProcesses called with:', {
+        documentId,
+        documentType,
+        hasInvoiceNumber: !!identificationData.identification.document_number,
+        invoiceNumber: identificationData.identification.document_number
+      });
+      
       // Only search if we have an invoice number
       if (identificationData.identification.document_number) {
         const response = await fetch('/api/processo-importacao/search', {
@@ -233,6 +245,7 @@ export function UnknownDocumentModal({
         
         if (response.ok) {
           const result = await response.json();
+          console.log('✅ [DEBUG] Search result:', result);
           setFoundProcesses(result.processes || []);
         } else {
           setFoundProcesses([]);
@@ -242,6 +255,7 @@ export function UnknownDocumentModal({
       }
       
       // Always show process selection modal
+      console.log('📊 [DEBUG] Setting showProcessSelection to true');
       setShowProcessSelection(true);
       
     } catch (error) {
@@ -305,7 +319,13 @@ export function UnknownDocumentModal({
 
       toast.success(`Documento ${documentType} processado e salvo com sucesso!`);
       
+      // Mark document as processed
+      setIsDocumentProcessed(true);
+      setAutoProcessCountdown(0); // Stop countdown
+      
       // Save document ID
+      console.log('📊 [DEBUG] Save result:', saveResult);
+      console.log('📊 [DEBUG] Document ID:', saveResult.documentId);
       setSavedDocumentId(saveResult.documentId);
       
       // Update upload status
@@ -335,7 +355,17 @@ export function UnknownDocumentModal({
       }
       
       // Search for related processes
+      console.log('🚀 [DEBUG] About to search related processes');
       await searchRelatedProcesses(identificationResult, saveResult.documentId, documentType);
+      console.log('✅ [DEBUG] searchRelatedProcesses completed');
+      
+      // Log final state
+      console.log('📊 [DEBUG] Final state after processing:', {
+        isDocumentProcessed,
+        showProcessSelection,
+        savedDocumentId: saveResult.documentId,
+        foundProcessesCount: foundProcesses.length
+      });
       
       // Don't close modal - show process selection instead
     } catch (error) {
@@ -538,8 +568,8 @@ export function UnknownDocumentModal({
                 </CardContent>
               </Card>
 
-              {/* Auto-process countdown */}
-              {identificationResult.nextStep.shouldProcess && autoProcessCountdown > 0 && (
+              {/* Auto-process countdown - only show if not processed */}
+              {identificationResult.nextStep.shouldProcess && autoProcessCountdown > 0 && !isDocumentProcessed && (
                 <Card className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border-purple-700">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -600,54 +630,106 @@ export function UnknownDocumentModal({
               <div className="space-y-3">
                 {identificationResult.identification.mappedType !== 'unknown' && 
                  identificationResult.identification.mappedType !== 'other' && (
-                  <Button
-                    onClick={() => {
-                      setAutoProcessCountdown(0);
-                      // Use setTimeout to avoid multiple clicks
-                      setTimeout(() => {
-                        handleProcessAsType(identificationResult.identification.mappedType);
-                      }, 0);
-                    }}
-                    disabled={isProcessing || processingRef.current}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                    size="lg"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processando...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="h-4 w-4 mr-2" />
-                        Processar como {getDocumentTypeLabel(identificationResult.identification.mappedType)}
-                        <ArrowRight className="h-4 w-4 ml-2" />
-                      </>
-                    )}
-                  </Button>
+                  isDocumentProcessed ? (
+                    // Show success state button
+                    <Button
+                      disabled
+                      variant="outline"
+                      className="w-full border-green-600 text-green-600"
+                      size="lg"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Documento Processado com Sucesso
+                    </Button>
+                  ) : (
+                    // Show process button
+                    <Button
+                      onClick={() => {
+                        setAutoProcessCountdown(0);
+                        // Use setTimeout to avoid multiple clicks
+                        setTimeout(() => {
+                          handleProcessAsType(identificationResult.identification.mappedType);
+                        }, 0);
+                      }}
+                      disabled={isProcessing || processingRef.current}
+                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                      size="lg"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Processando...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Processar como {getDocumentTypeLabel(identificationResult.identification.mappedType)}
+                          <ArrowRight className="h-4 w-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  )
                 )}
                 
                 <Button
-                  onClick={onCreateNewProcess}
+                  onClick={async () => {
+                    // Create simple process directly
+                    if (identificationResult?.identification.document_number) {
+                      try {
+                        const response = await fetch('/api/processo-importacao/create-simple', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify({
+                            invoiceNumber: identificationResult.identification.document_number,
+                            fileHash: identificationResult.uploadData.fileHash
+                          })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                          toast.success(
+                            result.isNew 
+                              ? `Processo ${result.processNumber} criado com sucesso!` 
+                              : `Documento conectado ao processo ${result.processNumber} existente`
+                          );
+                          onOpenChange(false);
+                        } else {
+                          throw new Error(result.error || 'Falha ao criar processo');
+                        }
+                      } catch (error) {
+                        console.error('Error creating simple process:', error);
+                        toast.error(`Erro ao criar processo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+                      }
+                    } else {
+                      toast.error('Não foi possível identificar o número da invoice no documento');
+                    }
+                  }}
                   variant="outline"
                   className="w-full"
+                  disabled={!identificationResult?.identification.document_number}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Criar Novo Processo
                 </Button>
                 
-                <Button
-                  onClick={() => {
-                    setStep('upload');
-                    setSelectedFile(null);
-                    setIdentificationResult(null);
-                    setAutoProcessCountdown(0);
-                  }}
-                  variant="ghost"
-                  className="w-full"
-                >
-                  Tentar Outro Documento
-                </Button>
+                {!isDocumentProcessed && (
+                  <Button
+                    onClick={() => {
+                      setStep('upload');
+                      setSelectedFile(null);
+                      setIdentificationResult(null);
+                      setAutoProcessCountdown(0);
+                      setIsDocumentProcessed(false);
+                    }}
+                    variant="ghost"
+                    className="w-full"
+                  >
+                    Tentar Outro Documento
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -656,13 +738,20 @@ export function UnknownDocumentModal({
     </Dialog>
     
     {/* Process Selection Modal */}
-    {showProcessSelection && savedDocumentId && identificationResult && (
+    {console.log('🎯 [DEBUG] Modal conditions:', {
+      showProcessSelection,
+      savedDocumentId,
+      hasIdentificationResult: !!identificationResult,
+      foundProcessesCount: foundProcesses.length,
+      shouldShowModal: showProcessSelection && identificationResult
+    })}
+    {showProcessSelection && identificationResult && (
       <ProcessSelectionModal
         open={showProcessSelection}
         onOpenChange={setShowProcessSelection}
         processes={foundProcesses}
         documentType={identificationResult.identification.mappedType}
-        documentId={savedDocumentId}
+        documentId={savedDocumentId || ''}
         fileHash={identificationResult.uploadData.fileHash}
         onProcessSelect={(processId) => {
           toast.success(`Documento conectado ao processo ${processId}`);

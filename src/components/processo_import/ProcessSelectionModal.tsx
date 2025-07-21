@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,9 @@ import {
   Building,
   Calendar,
   Hash,
-  X
+  X,
+  Play,
+  Pause
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -63,11 +65,70 @@ export function ProcessSelectionModal({
 }: ProcessSelectionModalProps) {
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
   const [isAttaching, setIsAttaching] = useState(false);
+  
+  // Auto-connect states
+  const [autoConnectCountdown, setAutoConnectCountdown] = useState<number>(0);
+  const [isAutoConnectPaused, setIsAutoConnectPaused] = useState(false);
+  const countdownInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize auto-connect when modal opens with single process
+  useEffect(() => {
+    if (open && processes.length === 1 && !selectedProcessId) {
+      // Auto-select the single process
+      setSelectedProcessId(processes[0].id);
+      // Start countdown
+      setAutoConnectCountdown(9);
+    }
+    
+    // Cleanup on close
+    if (!open) {
+      setAutoConnectCountdown(0);
+      setIsAutoConnectPaused(false);
+      if (countdownInterval.current) {
+        clearInterval(countdownInterval.current);
+        countdownInterval.current = null;
+      }
+    }
+  }, [open, processes.length]);
+
+  // Auto-connect countdown effect
+  useEffect(() => {
+    if (autoConnectCountdown > 0 && !isAutoConnectPaused) {
+      countdownInterval.current = setInterval(() => {
+        setAutoConnectCountdown((prev) => {
+          if (prev <= 1) {
+            // Clear interval before auto-connecting
+            if (countdownInterval.current) {
+              clearInterval(countdownInterval.current);
+              countdownInterval.current = null;
+            }
+            // Auto-connect
+            handleAttach();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (countdownInterval.current) {
+        clearInterval(countdownInterval.current);
+        countdownInterval.current = null;
+      }
+    }
+
+    return () => {
+      if (countdownInterval.current) {
+        clearInterval(countdownInterval.current);
+        countdownInterval.current = null;
+      }
+    };
+  }, [autoConnectCountdown, isAutoConnectPaused]);
 
   const handleAttach = async () => {
     if (!selectedProcessId || !fileHash) return;
 
     setIsAttaching(true);
+    setAutoConnectCountdown(0); // Stop countdown
     try {
       // Call API to connect document to process
       const response = await fetch('/api/processo-importacao/connect-documents', {
@@ -143,6 +204,64 @@ export function ProcessSelectionModal({
                   Encontramos {processes.length} processo(s) que podem estar relacionados:
                 </p>
               </div>
+
+              {/* Auto-connect card for single process */}
+              {processes.length === 1 && autoConnectCountdown > 0 && (
+                <Card className="mb-4 bg-gradient-to-r from-blue-900/20 to-green-900/20 border-blue-700">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {isAutoConnectPaused ? (
+                          <Pause className="h-5 w-5 text-yellow-500" />
+                        ) : (
+                          <Play className="h-5 w-5 text-green-500 animate-pulse" />
+                        )}
+                        <div>
+                          <p className="font-medium">
+                            {isAutoConnectPaused 
+                              ? 'Conexão automática pausada' 
+                              : `Conectando automaticamente em ${autoConnectCountdown} segundos...`
+                            }
+                          </p>
+                          <p className="text-sm text-zinc-400">
+                            Documento será conectado ao processo {processes[0].numero_processo}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant={isAutoConnectPaused ? "default" : "outline"}
+                          onClick={() => setIsAutoConnectPaused(!isAutoConnectPaused)}
+                        >
+                          {isAutoConnectPaused ? (
+                            <>
+                              <Play className="h-4 w-4 mr-1" />
+                              Continuar
+                            </>
+                          ) : (
+                            <>
+                              <Pause className="h-4 w-4 mr-1" />
+                              Pausar
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            setAutoConnectCountdown(0);
+                            setIsAutoConnectPaused(false);
+                          }}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <ScrollArea className="h-[400px] pr-4">
                 <div className="space-y-3">
@@ -237,7 +356,56 @@ export function ProcessSelectionModal({
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={onCreateNewProcess}
+                onClick={async () => {
+                  // Try to extract invoice number from the saved document
+                  let invoiceNumber = null;
+                  
+                  try {
+                    // Get document data to extract invoice number
+                    const docResponse = await fetch(`/api/documents/${documentType}/${documentId}`);
+                    if (docResponse.ok) {
+                      const docData = await docResponse.json();
+                      invoiceNumber = docData.invoiceNumber || docData.invoice_number || docData.fatura;
+                    }
+                  } catch (error) {
+                    console.error('Error fetching document data:', error);
+                  }
+                  
+                  if (invoiceNumber) {
+                    // Create simple process directly
+                    try {
+                      const response = await fetch('/api/processo-importacao/create-simple', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          invoiceNumber: invoiceNumber,
+                          fileHash: fileHash
+                        })
+                      });
+                      
+                      const result = await response.json();
+                      
+                      if (result.success) {
+                        toast.success(
+                          result.isNew 
+                            ? `Processo ${result.processNumber} criado e documento conectado!` 
+                            : `Documento conectado ao processo ${result.processNumber} existente`
+                        );
+                        onOpenChange(false);
+                      } else {
+                        throw new Error(result.error || 'Falha ao criar processo');
+                      }
+                    } catch (error) {
+                      console.error('Error creating simple process:', error);
+                      toast.error(`Erro ao criar processo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+                    }
+                  } else {
+                    // Fallback to original behavior if no invoice number
+                    onCreateNewProcess();
+                  }
+                }}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Novo Processo

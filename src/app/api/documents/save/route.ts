@@ -168,6 +168,9 @@ export async function POST(request: NextRequest) {
       // Update document type in DOCUMENT_UPLOADS table if fileHash is provided
       if (metadata?.fileHash) {
         try {
+          console.log('🔄 [SAVE] Updating document type in DOCUMENT_UPLOADS table...');
+          console.log('🔍 [SAVE] Looking for document with hash:', metadata.fileHash);
+          
           const { getNocoDBService } = await import('@/lib/services/nocodb');
           const { NOCODB_TABLES } = await import('@/config/nocodb-tables');
           const nocodb = getNocoDBService();
@@ -178,26 +181,38 @@ export async function POST(request: NextRequest) {
             limit: 1
           });
           
+          console.log('📊 [SAVE] Upload records found:', uploadRecords.list?.length || 0);
+          
           if (uploadRecords.list && uploadRecords.list.length > 0) {
             const uploadRecord = uploadRecords.list[0];
+            console.log('📋 [SAVE] Current upload record:', {
+              Id: uploadRecord.Id,
+              currentType: uploadRecord.tipoDocumento,
+              currentStatus: uploadRecord.statusProcessamento
+            });
             
             // Update document type from 'unknown' to the identified type
-            await nocodb.update(
+            const updateResult = await nocodb.update(
               NOCODB_TABLES.DOCUMENT_UPLOADS,
               uploadRecord.Id,
               {
+                Id: uploadRecord.Id,  // NocoDB expects ID in the body
                 tipoDocumento: documentType,
                 statusProcessamento: 'completo',
-                idDocumento: saveResult.documentId
+                idDocumento: saveResult.documentId || null
               }
             );
             
-            console.log(`✅ [SAVE] Updated document type to '${documentType}' for upload ID: ${uploadRecord.Id}`);
+            console.log(`✅ [SAVE] Updated document type to '${documentType}' for upload ID: ${uploadRecord.Id}`, updateResult);
+          } else {
+            console.log('⚠️ [SAVE] No upload record found for hash:', metadata.fileHash);
           }
         } catch (error) {
           console.error('❌ [SAVE] Error updating document type in uploads table:', error);
           // Don't fail the save operation due to this
         }
+      } else {
+        console.log('⚠️ [SAVE] No fileHash provided in metadata, skipping document type update');
       }
 
       // Prepare response
