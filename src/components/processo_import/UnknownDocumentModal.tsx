@@ -33,6 +33,9 @@ import { toast } from 'sonner';
 import { ProcessoImportacao } from '@/types/processo-importacao';
 import { DocumentType } from '@/services/documents';
 import { ProcessSelectionModal } from './ProcessSelectionModal';
+import { getDocumentCacheService } from '@/lib/services/DocumentCacheService';
+import { getNocoDBService } from '@/lib/services/nocodb';
+import { NOCODB_TABLES } from '@/config/nocodb-tables';
 
 interface UnknownDocumentModalProps {
   open: boolean;
@@ -89,6 +92,9 @@ export function UnknownDocumentModal({
   const [showProcessSelection, setShowProcessSelection] = useState(false);
   const [savedDocumentId, setSavedDocumentId] = useState<string | null>(null);
   const [foundProcesses, setFoundProcesses] = useState<any[]>([]);
+  
+  // Add ref for processing control to prevent double execution
+  const processingRef = useRef(false);
 
   // Reset state when modal closes
   React.useEffect(() => {
@@ -100,6 +106,7 @@ export function UnknownDocumentModal({
       setSelectedProcessId(null);
       setAutoProcessCountdown(0);
       setIsAutoProcessPaused(false);
+      processingRef.current = false; // Reset processing ref
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
       }
@@ -111,13 +118,21 @@ export function UnknownDocumentModal({
     if (
       identificationResult?.nextStep.shouldProcess &&
       autoProcessCountdown > 0 &&
-      !isAutoProcessPaused
+      !isAutoProcessPaused &&
+      !processingRef.current // Use ref instead of state
     ) {
       countdownInterval.current = setInterval(() => {
         setAutoProcessCountdown((prev) => {
           if (prev <= 1) {
-            // Auto-process
-            handleProcessAsType(identificationResult.identification.mappedType as DocumentType);
+            // Clear interval before auto-processing
+            if (countdownInterval.current) {
+              clearInterval(countdownInterval.current);
+              countdownInterval.current = null;
+            }
+            // Auto-process only if not already processing - check ref again
+            if (!processingRef.current) {
+              handleProcessAsType(identificationResult.identification.mappedType as DocumentType);
+            }
             return 0;
           }
           return prev - 1;
@@ -126,15 +141,17 @@ export function UnknownDocumentModal({
     } else {
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
+        countdownInterval.current = null;
       }
     }
 
     return () => {
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
+        countdownInterval.current = null;
       }
     };
-  }, [autoProcessCountdown, isAutoProcessPaused, identificationResult]);
+  }, [autoProcessCountdown, isAutoProcessPaused, identificationResult]); // Remove isProcessing from deps
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -202,35 +219,31 @@ export function UnknownDocumentModal({
     documentType: string
   ) => {
     try {
-      // Build search criteria
-      const searchData: any = {};
-      
+      // Only search if we have an invoice number
       if (identificationData.identification.document_number) {
-        searchData.invoiceNumber = identificationData.identification.document_number;
-      }
-      
-      if (identificationData.identification.has_invoice_number && identificationData.identification.document_number) {
-        searchData.documentNumber = identificationData.identification.document_number;
-      }
-      
-      // Search for processes
-      const response = await fetch('/api/processo-importacao/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(searchData)
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setFoundProcesses(result.processes || []);
-        setShowProcessSelection(true);
+        const response = await fetch('/api/processo-importacao/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            invoiceNumber: identificationData.identification.document_number
+          })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          setFoundProcesses(result.processes || []);
+        } else {
+          setFoundProcesses([]);
+        }
       } else {
-        // If search fails, still show process selection with empty list
         setFoundProcesses([]);
-        setShowProcessSelection(true);
       }
+      
+      // Always show process selection modal
+      setShowProcessSelection(true);
+      
     } catch (error) {
       console.error('Error searching processes:', error);
       setFoundProcesses([]);
@@ -239,8 +252,11 @@ export function UnknownDocumentModal({
   };
 
   const handleProcessAsType = async (documentType: string, processId?: string) => {
-    if (!identificationResult) return;
-
+    // Check if already processing using ref
+    if (processingRef.current || !identificationResult) return;
+    
+    // Set processing immediately with ref
+    processingRef.current = true;
     setIsProcessing(true);
     
     try {
@@ -292,6 +308,32 @@ export function UnknownDocumentModal({
       // Save document ID
       setSavedDocumentId(saveResult.documentId);
       
+      // Update upload status
+      if (identificationResult.uploadData.fileHash && saveResult.documentId) {
+        try {
+          const nocodb = getNocoDBService();
+          // Find upload record by hash
+          const uploadRecords = await nocodb.find(NOCODB_TABLES.DOCUMENT_UPLOADS, {
+            where: `(hashArquivo,eq,${identificationResult.uploadData.fileHash})`,
+            limit: 1
+          });
+          
+          if (uploadRecords.list && uploadRecords.list.length > 0) {
+            const uploadRecord = uploadRecords.list[0];
+            const cacheService = getDocumentCacheService();
+            await cacheService.updateUploadStatus(
+              uploadRecord.Id, 
+              saveResult.documentId, 
+              'completo'
+            );
+            console.log(`✅ Status atualizado para 'completo' - Upload ID: ${uploadRecord.Id}`);
+          }
+        } catch (error) {
+          console.error('Error updating upload status:', error);
+          // Don't fail the operation
+        }
+      }
+      
       // Search for related processes
       await searchRelatedProcesses(identificationResult, saveResult.documentId, documentType);
       
@@ -301,6 +343,7 @@ export function UnknownDocumentModal({
       toast.error(`Erro ao processar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setIsProcessing(false);
+      processingRef.current = false; // Reset ref
     }
   };
 
@@ -560,9 +603,12 @@ export function UnknownDocumentModal({
                   <Button
                     onClick={() => {
                       setAutoProcessCountdown(0);
-                      handleProcessAsType(identificationResult.identification.mappedType);
+                      // Use setTimeout to avoid multiple clicks
+                      setTimeout(() => {
+                        handleProcessAsType(identificationResult.identification.mappedType);
+                      }, 0);
                     }}
-                    disabled={isProcessing}
+                    disabled={isProcessing || processingRef.current}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                     size="lg"
                   >
@@ -617,8 +663,9 @@ export function UnknownDocumentModal({
         processes={foundProcesses}
         documentType={identificationResult.identification.mappedType}
         documentId={savedDocumentId}
+        fileHash={identificationResult.uploadData.fileHash}
         onProcessSelect={(processId) => {
-          toast.success(`Documento anexado ao processo ${processId}`);
+          toast.success(`Documento conectado ao processo ${processId}`);
           onProcessSelect(processId);
           onOpenChange(false);
         }}
@@ -628,7 +675,7 @@ export function UnknownDocumentModal({
           onOpenChange(false);
         }}
         onSkipAttachment={() => {
-          toast.info('Documento salvo sem anexação a processo');
+          toast.info('Documento salvo sem conexão a processo');
           setShowProcessSelection(false);
           onOpenChange(false);
         }}

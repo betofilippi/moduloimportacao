@@ -82,6 +82,44 @@ export async function getSession() {
 }
 
 export async function getUser() {
-  const session = await getSession();
-  return session?.user || null;
+  const supabase = await createSupabaseServerClient();
+  
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) {
+      console.error('Error getting user:', error);
+      return null;
+    }
+    
+    return user;
+  } catch (error) {
+    console.error('Error in getUser:', error);
+    return null;
+  }
+}
+
+// New secure function that returns both user and session
+export async function getSecureSession() {
+  const supabase = await createSupabaseServerClient();
+  
+  try {
+    // Get authenticated user from Supabase Auth server
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      return null;
+    }
+    
+    // Get session for additional data if needed
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    return {
+      user,
+      session
+    };
+  } catch (error) {
+    console.error('Error in getSecureSession:', error);
+    return null;
+  }
 }

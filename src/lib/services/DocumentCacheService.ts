@@ -467,6 +467,7 @@ export class DocumentCacheService {
       await this.nocodb.update(NOCODB_TABLES.DOCUMENT_UPLOADS, uploadId, {
         statusProcessamento: status,
         dataProcessamento: new Date().toISOString(),
+        idDocumento: documentId, // Now properly updating the document ID
         Id: uploadId,
       });
     } catch (error) {

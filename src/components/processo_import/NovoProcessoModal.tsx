@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Dialog,
@@ -120,6 +120,9 @@ export function NovoProcessoModal({
   const [processData, setProcessData] = useState<any>(null);
   const [proformaData, setProformaData] = useState<any>(null);
   const [numeroProcesso, setNumeroProcesso] = useState('');
+  
+  // Add ref for processing control to prevent double execution
+  const processingRef = useRef(false);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -130,6 +133,7 @@ export function NovoProcessoModal({
       setProcessData(null);
       setProformaData(null);
       setNumeroProcesso('');
+      processingRef.current = false; // Reset processing ref
     }
   }, [open]);
 
@@ -154,11 +158,16 @@ export function NovoProcessoModal({
   });
 
   const handleProcessFile = async () => {
+    // Check if already processing using ref
+    if (processingRef.current) return;
+    
     if (!selectedFile) {
       toast.error('Selecione um arquivo para processar');
       return;
     }
 
+    // Set processing immediately with ref
+    processingRef.current = true;
     setIsProcessing(true);
     setProcessingStep('uploading');
 
@@ -372,9 +381,7 @@ export function NovoProcessoModal({
       console.log('Creating process with proforma data:', {
         invoiceNumber,
         empresa: proformaInfo?.contracted_company,
-        valor: proformaInfo?.total_price,
-        porto_embarque: proformaInfo?.load_port,
-        porto_destino: proformaInfo?.destination
+        valor: proformaInfo?.total_price
       });
       
       const newProcessData = {
@@ -383,28 +390,12 @@ export function NovoProcessoModal({
         data_inicio: format(new Date(), 'yyyy-MM-dd'),
         data_conclusao: null,
         status: 'active',
-        descricao: `Processo de importação para Proforma Invoice ${invoiceNumber}`,
         empresa: proformaInfo?.contracted_company || proformaInfo?.seller || proformaInfo?.exporter || 'A definir',
         cnpj_empresa: proformaInfo?.seller_tax_id || '',
         responsavel: 'Sistema',
         email_responsavel: proformaInfo?.contracted_email || '',
         valor_total_estimado: proformaInfo?.total_price || proformaInfo?.total_amount || proformaInfo?.total || 0,
-        moeda: proformaInfo?.currency || 'USD',
-        porto_embarque: proformaInfo?.load_port || '',
-        porto_destino: proformaInfo?.destination || '',
-        condicoes_pagamento: proformaInfo?.payment_terms || '',
-        proforma_invoice_id: fileHash, // Link to the proforma invoice
-        proforma_invoice_doc_id: savedDocumentId, // Document ID from save
-        documentsPipeline: JSON.stringify([
-          {
-            documentType: 'proforma_invoice',
-            status: savedDocumentId ? 'completed' : 'processing',
-            fileHash: fileHash,
-            documentId: savedDocumentId,
-            uploadedAt: new Date().toISOString(),
-            processedAt: savedDocumentId ? new Date().toISOString() : null
-          }
-        ])
+        moeda: proformaInfo?.currency || 'USD'
       };
 
       setProcessData(newProcessData);
@@ -460,6 +451,7 @@ export function NovoProcessoModal({
       toast.error(`Erro ao processar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       setIsProcessing(false);
       setProcessingStep('idle');
+      processingRef.current = false; // Reset ref
     }
   };
 
@@ -608,8 +600,13 @@ export function NovoProcessoModal({
             Cancelar
           </Button>
           <Button
-            onClick={handleProcessFile}
-            disabled={!selectedFile || isProcessing}
+            onClick={() => {
+              // Use setTimeout to avoid multiple clicks
+              setTimeout(() => {
+                handleProcessFile();
+              }, 0);
+            }}
+            disabled={!selectedFile || isProcessing || processingRef.current}
             className="bg-primary hover:bg-primary/90"
           >
             <FileText className="h-4 w-4 mr-2" />

@@ -259,7 +259,7 @@ export class DocumentSaveService {
         transformedHeader
       );
 
-      const numeroDI = savedHeader.numero_di;
+      const numeroDI = savedHeader.numero_DI || savedHeader.numero_di;
 
       // Extract and save items
       const itemsArray = this.extractData(data.items, []);
@@ -268,7 +268,7 @@ export class DocumentSaveService {
         for (const item of itemsArray) {
           const itemData = {
             ...item,
-            numeroDI,
+            numero_di: numeroDI, // Use the field name expected by mapping
           };
           console.log('ITEM A SER TRNASFORMADO',itemData)
           const transformedItem = transformToNocoDBFormat(
@@ -295,7 +295,7 @@ export class DocumentSaveService {
         for (const item of taxInfoArray) {
           const itemData = {
             ...item,
-            numeroDI,
+            numero_di: numeroDI, // Use the field name expected by mapping (not used in tax mapping but kept for consistency)
           };
 
           const transformedItemTax = transformToNocoDBFormat(
@@ -365,7 +365,7 @@ export class DocumentSaveService {
         transformedHeader
       );
 
-      const invoiceNumber = savedHeader.invoice_number;
+      const invoiceNumber = savedHeader.invoiceNumber || savedHeader.invoice_number;
 
       // Extract items - handle multi-step structure
       const itemsArray = this.extractData(data.items, []);
@@ -377,8 +377,8 @@ export class DocumentSaveService {
         for (let i = 0; i < itemsArray.length; i++) {
           const item = itemsArray[i];
           const itemData = {
-            invoiceNumber,
-            lineNumber: i + 1,
+            invoice_number: invoiceNumber, // Use the OCR field name that maps to invoiceNumber in DB
+            item_number: i + 1, // Map lineNumber to item_number
             ...item,
           };
 
@@ -506,7 +506,7 @@ export class DocumentSaveService {
             container: item.container,
             descricao_chines: item.descricao_chines,
             descricao_ingles: item.descricao_ingles,
-            item_number: item.item_number,
+            numero_item: item.item_number || item.numero_item, // Map item_number to numero_item
             largura_pacote: item.largura_pacote,
             marcacao_do_pacote: item.marcacao_do_pacote,
             peso_bruto_por_pacote: item.peso_bruto_por_pacote,
@@ -616,7 +616,7 @@ export class DocumentSaveService {
         for (let i = 0; i < itemsArray.length; i++) {
           const item = itemsArray[i];
           const itemData = {
-            invoiceNumber: proformaNumber,
+            // Note: invoiceNumber is not in the mapping, so we add it directly to transformed data
             item_number: item.item_number || (i + 1),
             item: item.item || '',
             description_in_english: item.description_in_english || '',
@@ -633,10 +633,11 @@ export class DocumentSaveService {
             TABLE_FIELD_MAPPINGS.PROFORMA_INVOICE_ITEM
           );
 
-          // Add file hash
+          // Add file hash and invoice number (not in mapping)
           if (options.fileHash) {
             transformedItem.hash_arquivo_origem = options.fileHash;
           }
+          transformedItem.invoiceNumber = proformaNumber; // Add directly since not in mapping
           
           const savedItem = await this.nocodb.create(
             NOCODB_TABLES.PROFORMA_INVOICE.ITEMS,
@@ -791,7 +792,7 @@ console.log('depois de preparar',preparedData);
 
       return {
         success: true,
-        documentId: savedSwift.id,
+        documentId: savedSwift.Id || savedSwift.id || savedSwift.invoiceNumber,
         details: {
           headers: savedSwift,
         },

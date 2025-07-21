@@ -47,14 +47,14 @@ export default function ProcessosPage() {
       numeroProcesso: record.numero_processo || '',
       descricao: record.descricao || '',
       empresa: record.empresa || '',
-      dataInicio: record.data_inicio || new Date().toISOString(),
+      dataInicio: record.data_inicio || '',
       dataPrevisaoTermino: record.data_previsao_termino,
       status: record.status || 'active',
       responsavel: record.responsavel || '',
       observacoes: record.observacoes,
       documentsPipeline,
-      createdAt: record.CreatedAt || record.criado_em || new Date().toISOString(),
-      updatedAt: record.UpdatedAt || record.atualizado_em || new Date().toISOString(),
+      createdAt: record.CreatedAt || record.criado_em || '',
+      updatedAt: record.UpdatedAt || record.atualizado_em || '',
       createdBy: record.criado_por || 'sistema'
     }
   }, [])

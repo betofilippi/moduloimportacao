@@ -370,6 +370,16 @@ case '[documenttype]':
 - Mappings handle bidirectional conversion
 - Use accessor functions for flexibility
 
+### CRITICAL: Always Use Field Mappings for Database Operations
+- **NEVER access database fields directly without checking mappings**
+- **ALWAYS use TABLE_FIELD_MAPPINGS from src/config/nocodb-tables.ts**
+- **Database columns must match exactly what's defined in mappings**
+- Examples of correct usage:
+  - PROCESSOS_IMPORTACAO: Use `invoiceNumber` not `invoice`, `descricao` not `descricao_adicionais`
+  - Sort fields: Use `data_inicio` not `criado_em`, `status` not `status_atual`
+- When building WHERE clauses for NocoDB queries, use exact mapped field names
+- Before using any field in a query, verify it exists in TABLE_FIELD_MAPPINGS
+
 ## Testing New Document Types
 
 1. **Unit Tests**
@@ -483,5 +493,124 @@ NOCODB_API_URL=
 **Internal/System**:
 - `src/services/ocr/pdfChunker.ts` - Internal PDF processing
 - `src/services/ocr/claudePDF.ts` - Internal Claude integration
+
+## Unknown Document Processing Flow
+
+### Overview
+The system includes an AI-powered unknown document identification feature that automatically:
+1. Identifies document types using Claude AI
+2. Processes them with the appropriate extractor
+3. Saves to the correct database table
+4. Connects documents to import processes
+
+### Key Components
+
+#### 1. **Document Identification** (`/api/documents/identify`)
+- Receives uploaded PDF file
+- Uses production-validated prompt to identify document type
+- Extracts key information (invoice number, document type, date)
+- Maps Portuguese document types to internal system types
+
+#### 2. **Document Processing** (`/api/documents/process`)
+- Takes identified document type and file info
+- Calls the appropriate document processor
+- Uses existing multi-step extraction infrastructure
+- Returns structured data ready for saving
+
+#### 3. **Document Saving** (`/api/documents/save`)
+- Saves extracted data to appropriate NocoDB tables
+- Passes fileHash in options to ensure hash_arquivo_origem is saved
+- Updates DOCUMENT_UPLOADS table with status 'completo' and idDocumento
+
+#### 4. **Process Search** (`/api/processo-importacao/search`)
+- Simple search by invoiceNumber only (exact match)
+- Returns minimal process data: id, numero_processo, empresa, invoice, status, data_inicio
+- Uses only existing fields from TABLE_FIELD_MAPPINGS
+
+#### 5. **Document Connection** (`/api/processo-importacao/connect-documents`)
+- Creates relationship in PROCESSO_DOCUMENTO_REL table
+- Links documents to processes using fileHash
+- Simple operation - just saves processo_importacao and hash_arquivo_upload
+
+### Data Flow for Unknown Documents
+
+```
+1. User uploads unknown document
+   └─> Upload creates record in DOCUMENT_UPLOADS with hashArquivo
+
+2. Document Identification
+   └─> AI identifies type and extracts invoice number
+   └─> Maps type from Portuguese to internal format
+
+3. Automatic Processing (8-second countdown)
+   └─> Processes with identified document type
+   └─> Extracts all data using multi-step prompts
+
+4. Save to Database
+   └─> Saves to specific document table with hash_arquivo_origem
+   └─> Updates DOCUMENT_UPLOADS status to 'completo'
+
+5. Process Search
+   └─> Searches for processes by exact invoiceNumber match
+   └─> Shows found processes in modal
+
+6. Connect to Process
+   └─> User selects process or creates new one
+   └─> Creates record in PROCESSO_DOCUMENTO_REL
+   └─> Links using fileHash (not document ID)
+```
+
+### Database Relationships
+
+```
+DOCUMENT_UPLOADS
+├── hashArquivo (PK) ─────┐
+├── idDocumento           │
+└── statusProcessamento   │
+                         │
+Document Tables          │
+├── hash_arquivo_origem ←┘
+└── Id                   
+                         
+PROCESSO_DOCUMENTO_REL   
+├── processo_importacao → PROCESSOS_IMPORTACAO.Id
+└── hash_arquivo_upload → DOCUMENT_UPLOADS.hashArquivo
+```
+
+### Important Implementation Details
+
+1. **Hash Management**
+   - Upload generates SHA-256 hash stored as `hashArquivo`
+   - All document saves include `hash_arquivo_origem`
+   - Relationships use hash, not document IDs
+
+2. **Status Updates**
+   - DocumentCacheService.updateUploadStatus() updates both status and idDocumento
+   - Called after successful save in OCR page and UnknownDocumentModal
+
+3. **Field Mappings**
+   - ALWAYS use TABLE_FIELD_MAPPINGS for database operations
+   - Never assume field names - verify in nocodb-tables.ts
+   - Example: use `invoiceNumber` not `invoice`, `descricao` not `descricao_adicionais`
+
+4. **Process Connection**
+   - Documents connect to processes via hash, not ID
+   - Multiple documents can connect to same process
+   - Connection is optional - user can skip
+
+### Available Document Types
+- `proforma_invoice` - Proforma Invoice
+- `commercial_invoice` - Commercial Invoice  
+- `packing_list` - Packing List
+- `swift` - SWIFT banking messages
+- `di` - Declaração de Importação
+- `numerario` - Financial/cash documents
+- `nota_fiscal` - Nota Fiscal
+
+### Security Considerations
+- All routes use getSecureSession() for authentication
+- File hash prevents duplicate processing
+- API keys never exposed to client
+- All processing happens server-side
 
 This guide provides everything needed to add new document types to the system while maintaining consistency with existing patterns and best practices.

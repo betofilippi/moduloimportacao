@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/supabase-server';
+import { getSecureSession } from '@/lib/supabase-server';
 import { DocumentSaveService } from '@/services/documents/DocumentSaveService';
 import { DocumentType } from '@/services/documents/base/types';
 
@@ -14,8 +14,8 @@ export async function POST(request: NextRequest) {
   
   try {
     // Check authentication
-    const session = await getSession();
-    if (!session?.user) {
+    const auth = await getSecureSession();
+    if (!auth?.user) {
       console.log('❌ [SAVE] Unauthorized access attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -93,43 +93,50 @@ export async function POST(request: NextRequest) {
       switch (documentType) {
         case DocumentType.DI:
           saveResult = await saveService.saveDI(dataToSave, {
-            userId: session.user.id
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
           });
           break;
           
         case DocumentType.COMMERCIAL_INVOICE:
           saveResult = await saveService.saveCommercialInvoice(dataToSave, {
-            userId: session.user.id
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
           });
           break;
           
         case DocumentType.PACKING_LIST:
           saveResult = await saveService.savePackingList(dataToSave, {
-            userId: session.user.id
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
           });
           break;
           
         case DocumentType.PROFORMA_INVOICE:
           saveResult = await saveService.saveProformaInvoice(dataToSave, {
-            userId: session.user.id
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
           });
           break;
           
         case DocumentType.SWIFT:
           saveResult = await saveService.saveSwift(dataToSave, {
-            userId: session.user.id
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
           });
           break;
           
         case DocumentType.NUMERARIO:
           saveResult = await saveService.saveNumerario(dataToSave, {
-            userId: session.user.id
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
           });
           break;
           
         case DocumentType.NOTA_FISCAL:
           saveResult = await saveService.saveNotaFiscal(dataToSave, {
-            userId: session.user.id
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
           });
           break;
           
@@ -156,6 +163,41 @@ export async function POST(request: NextRequest) {
         const savedFields = Object.keys(saveResult.details.saved);
         console.log('📊 [SAVE] Saved fields:', savedFields.slice(0, 10), 
           savedFields.length > 10 ? `... and ${savedFields.length - 10} more` : '');
+      }
+
+      // Update document type in DOCUMENT_UPLOADS table if fileHash is provided
+      if (metadata?.fileHash) {
+        try {
+          const { getNocoDBService } = await import('@/lib/services/nocodb');
+          const { NOCODB_TABLES } = await import('@/config/nocodb-tables');
+          const nocodb = getNocoDBService();
+          
+          // Find upload record by hash
+          const uploadRecords = await nocodb.find(NOCODB_TABLES.DOCUMENT_UPLOADS, {
+            where: `(hashArquivo,eq,${metadata.fileHash})`,
+            limit: 1
+          });
+          
+          if (uploadRecords.list && uploadRecords.list.length > 0) {
+            const uploadRecord = uploadRecords.list[0];
+            
+            // Update document type from 'unknown' to the identified type
+            await nocodb.update(
+              NOCODB_TABLES.DOCUMENT_UPLOADS,
+              uploadRecord.Id,
+              {
+                tipoDocumento: documentType,
+                statusProcessamento: 'completo',
+                idDocumento: saveResult.documentId
+              }
+            );
+            
+            console.log(`✅ [SAVE] Updated document type to '${documentType}' for upload ID: ${uploadRecord.Id}`);
+          }
+        } catch (error) {
+          console.error('❌ [SAVE] Error updating document type in uploads table:', error);
+          // Don't fail the save operation due to this
+        }
       }
 
       // Prepare response

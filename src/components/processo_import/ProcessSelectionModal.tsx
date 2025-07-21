@@ -35,10 +35,7 @@ interface Process {
   empresa: string;
   invoice: string;
   status: string;
-  data_abertura: string;
-  descricao_adicionais?: string;
-  relevanceScore?: number;
-  matchedFields?: string[];
+  data_inicio: string;
 }
 
 interface ProcessSelectionModalProps {
@@ -47,6 +44,7 @@ interface ProcessSelectionModalProps {
   processes: Process[];
   documentType: string;
   documentId: string;
+  fileHash: string;
   onProcessSelect: (processId: string) => void;
   onCreateNewProcess: () => void;
   onSkipAttachment?: () => void;
@@ -58,6 +56,7 @@ export function ProcessSelectionModal({
   processes,
   documentType,
   documentId,
+  fileHash,
   onProcessSelect,
   onCreateNewProcess,
   onSkipAttachment
@@ -66,35 +65,34 @@ export function ProcessSelectionModal({
   const [isAttaching, setIsAttaching] = useState(false);
 
   const handleAttach = async () => {
-    if (!selectedProcessId) return;
+    if (!selectedProcessId || !fileHash) return;
 
     setIsAttaching(true);
     try {
-      // Call API to attach document to process
-      const response = await fetch('/api/processo-importacao/attach-document', {
+      // Call API to connect document to process
+      const response = await fetch('/api/processo-importacao/connect-documents', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           processId: selectedProcessId,
-          documentId: documentId,
-          documentType: documentType
+          fileHash: fileHash
         })
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Falha ao anexar documento');
+        throw new Error(result.error || 'Falha ao conectar documento');
       }
 
-      toast.success('Documento anexado ao processo com sucesso!');
+      toast.success('Documento conectado ao processo com sucesso!');
       await onProcessSelect(selectedProcessId);
       onOpenChange(false);
     } catch (error) {
-      console.error('Error attaching document:', error);
-      toast.error(`Erro ao anexar documento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      console.error('Error connecting document:', error);
+      toast.error(`Erro ao conectar documento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setIsAttaching(false);
     }
@@ -190,34 +188,10 @@ export function ProcessSelectionModal({
                       </CardHeader>
                       <CardContent className="pt-0">
                         <div className="space-y-2">
-                          {process.data_abertura && (
+                          {process.data_inicio && (
                             <div className="flex items-center gap-2 text-sm text-zinc-400">
                               <Calendar className="h-3 w-3" />
-                              Aberto em {format(new Date(process.data_abertura), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                            </div>
-                          )}
-                          
-                          {process.relevanceScore && process.relevanceScore > 0 && (
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-zinc-700 rounded-full h-2">
-                                <div 
-                                  className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full"
-                                  style={{ width: `${Math.min(process.relevanceScore, 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-xs text-zinc-400">
-                                {process.relevanceScore}% match
-                              </span>
-                            </div>
-                          )}
-                          
-                          {process.matchedFields && process.matchedFields.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {process.matchedFields.map((field, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {field}
-                                </Badge>
-                              ))}
+                              Iniciado em {format(new Date(process.data_inicio), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                             </div>
                           )}
                         </div>
