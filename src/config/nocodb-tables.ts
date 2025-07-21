@@ -77,6 +77,7 @@ export const TABLE_FIELD_MAPPINGS = {
   data_conclusao: "data_conclusao",
   status: "status",
   valor_total_estimado: "valor_total_estimado",
+  etapa: "etapa",
   moeda: "moeda",
 },
 
@@ -557,3 +558,62 @@ export function unflattenSwiftData(flatData: Record<string, any>): Record<string
   
   return unflattened;
 }
+
+/**
+ * Kanban Configuration
+ * Define the stages for kanban visualization
+ */
+export const KANBAN_CONFIG = {
+  // Process stages/columns
+  STAGES: [
+    {
+      id: 'solicitado',
+      title: 'Solicitado',
+      color: 'bg-blue-500',
+      description: 'Processos recém criados aguardando início'
+    },
+    {
+      id: 'em_transporte',
+      title: 'Em Transporte',
+      color: 'bg-yellow-500',
+      description: 'Mercadoria em trânsito internacional'
+    },
+    {
+      id: 'processamento_nacional',
+      title: 'Processamento Nacional',
+      color: 'bg-orange-500',
+      description: 'Em processo de desembaraço aduaneiro'
+    },
+    {
+      id: 'em_transporte_local',
+      title: 'Em Transporte Local',
+      color: 'bg-purple-500',
+      description: 'Transporte nacional até destino final'
+    },
+    {
+      id: 'recebido',
+      title: 'Recebido',
+      color: 'bg-green-500',
+      description: 'Mercadoria recebida no destino'
+    },
+    {
+      id: 'auditado',
+      title: 'Auditado',
+      color: 'bg-gray-500',
+      description: 'Processo finalizado e auditado'
+    }
+  ],
+  
+  // Default stage for new processes
+  DEFAULT_STAGE: 'solicitado',
+  
+  // Allowed transitions (optional - for future use)
+  TRANSITIONS: {
+    'solicitado': ['em_transporte'],
+    'em_transporte': ['processamento_nacional'],
+    'processamento_nacional': ['em_transporte_local'],
+    'em_transporte_local': ['recebido'],
+    'recebido': ['auditado'],
+    'auditado': [] // Final stage
+  }
+} as const;

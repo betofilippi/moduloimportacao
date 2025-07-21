@@ -35,6 +35,7 @@ export interface ProcessoImportacao {
   dataInicio: string;
   dataPrevisaoTermino?: string;
   status: 'active' | 'completed' | 'cancelled' | 'on_hold';
+  etapa?: string; // Kanban stage
   responsavel: string;
   observacoes?: string;
   documentsPipeline: DocumentPipelineStatus[];

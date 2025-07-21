@@ -390,6 +390,7 @@ export function NovoProcessoModal({
         data_inicio: format(new Date(), 'yyyy-MM-dd'),
         data_conclusao: null,
         status: 'active',
+        etapa: 'solicitado', // Default Kanban stage
         empresa: proformaInfo?.contracted_company || proformaInfo?.seller || proformaInfo?.exporter || 'A definir',
         cnpj_empresa: proformaInfo?.seller_tax_id || '',
         responsavel: 'Sistema',

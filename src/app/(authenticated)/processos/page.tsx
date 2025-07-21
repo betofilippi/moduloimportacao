@@ -2,17 +2,19 @@
 
 import * as React from "react"
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Search, Filter, Download, FileQuestion, RefreshCw } from "lucide-react"
+import { Plus, Search, Filter, Download, FileQuestion, RefreshCw, List, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProcessoImportacaoList } from "@/components/processo_import/ProcessoImportacaoList"
+import { KanbanBoard } from "@/components/processo_import/KanbanBoard"
 import { ProcessoImportacaoModal } from "@/components/processo_import/ProcessoImportacaoModal"
 import { NovoProcessoModal } from "@/components/processo_import/NovoProcessoModal"
 import { UnknownDocumentModal } from "@/components/processo_import/UnknownDocumentModal"
 import { ProcessoImportacao, DocumentPipelineStatus } from "@/types/processo-importacao"
 import { useNocoDB } from "@/hooks/useNocoDB"
-import { NOCODB_TABLES, TABLE_FIELD_MAPPINGS } from "@/config/nocodb-tables"
+import { NOCODB_TABLES, TABLE_FIELD_MAPPINGS, KANBAN_CONFIG } from "@/config/nocodb-tables"
 import { toast } from "sonner"
 import { NocoDBRecord } from "@/types/nocodb"
 
@@ -25,6 +27,7 @@ export default function ProcessosPage() {
   const [isUnknownDocumentModalOpen, setIsUnknownDocumentModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
 
   const { find, create, update, remove } = useNocoDB(NOCODB_TABLES.PROCESSOS_IMPORTACAO)
 
@@ -51,6 +54,7 @@ export default function ProcessosPage() {
       dataInicio: record.data_inicio || '',
       dataPrevisaoTermino: record.data_previsao_termino,
       status: record.status || 'active',
+      etapa: record.etapa || KANBAN_CONFIG.DEFAULT_STAGE,
       responsavel: record.responsavel || '',
       observacoes: record.observacoes,
       documentsPipeline,
@@ -165,6 +169,7 @@ export default function ProcessosPage() {
         data_inicio: data.data_inicio,
         data_conclusao: data.data_conclusao,
         status: data.status,
+        etapa: data.etapa || 'solicitado', // Default Kanban stage
         valor_total_estimado: data.valor_total_estimado,
         moeda: data.moeda,
         porto_embarque: data.porto_embarque, // Added
@@ -220,6 +225,37 @@ export default function ProcessosPage() {
   const totalProcessos = processos.length
   const processosAtivos = processos.filter(p => p.status === 'active').length
   const processosConcluidos = processos.filter(p => p.status === 'completed').length
+
+  // Handle stage change for Kanban
+  const handleStageChange = async (processId: string, newStage: string) => {
+    try {
+      const response = await fetch('/api/processo-importacao/update-stage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          processId,
+          newStage
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update stage')
+      }
+
+      // Update local state
+      setProcessos(prev => prev.map(p => 
+        p.id === processId ? { ...p, etapa: newStage } : p
+      ))
+      
+      toast.success('Etapa atualizada com sucesso')
+    } catch (error) {
+      console.error('Error updating stage:', error)
+      toast.error('Erro ao atualizar etapa')
+      throw error
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -293,22 +329,58 @@ export default function ProcessosPage() {
         </Card>
       </div>
 
-      {/* Processes List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Processos</CardTitle>
-          <CardDescription>
-            Gerencie todos os processos de importação
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ProcessoImportacaoList
-            processos={filteredProcessos}
-            onProcessoClick={handleProcessoClick}
-            loading={isLoading}
-          />
-        </CardContent>
-      </Card>
+      {/* View Mode Tabs */}
+      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'list' | 'kanban')}>
+        <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+          <TabsTrigger value="list" className="flex items-center gap-2">
+            <List className="h-4 w-4" />
+            Lista
+          </TabsTrigger>
+          <TabsTrigger value="kanban" className="flex items-center gap-2">
+            <Layers className="h-4 w-4" />
+            Kanban
+          </TabsTrigger>
+        </TabsList>
+
+        {/* List View */}
+        <TabsContent value="list" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lista de Processos</CardTitle>
+              <CardDescription>
+                Gerencie todos os processos de importação
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProcessoImportacaoList
+                processos={filteredProcessos}
+                onProcessoClick={handleProcessoClick}
+                loading={isLoading}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Kanban View */}
+        <TabsContent value="kanban" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Kanban de Processos</CardTitle>
+              <CardDescription>
+                Visualize os processos por etapa de importação
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <KanbanBoard
+                processos={filteredProcessos}
+                onProcessoClick={handleProcessoClick}
+                onStageChange={handleStageChange}
+                loading={isLoading}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Unknown Document Section */}
       <Card className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border-purple-700/50">

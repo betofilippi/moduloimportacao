@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
         email_responsavel: '',
         data_inicio: format(new Date(), 'yyyy-MM-dd'),
         status: 'active',
+        etapa: 'solicitado', // Default Kanban stage
         criado_por: auth.user.email || 'sistema'
       };
 

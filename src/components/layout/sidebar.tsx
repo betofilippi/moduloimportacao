@@ -23,6 +23,7 @@ import {
   Shield,
   ScanLine,
   FolderOpen,
+  Layers,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -78,6 +79,12 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
           title: "Importações (Em Desenvolvimento)",
           href: "/processos",
           icon: Upload,
+          requiredRole: ['admin', 'user'],
+        },
+        {
+          title: "Kanban de Processos",
+          href: "/kanban",
+          icon: Layers,
           requiredRole: ['admin', 'user'],
         },/*
         {

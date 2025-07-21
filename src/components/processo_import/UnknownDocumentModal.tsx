@@ -105,6 +105,14 @@ export function UnknownDocumentModal({
   // Track if document has been processed
   const [isDocumentProcessed, setIsDocumentProcessed] = useState(false);
   
+  // File existence check state
+  const [existingFileInfo, setExistingFileInfo] = useState<{
+    exists: boolean;
+    uploadRecord?: any;
+    processInfo?: any;
+  } | null>(null);
+  const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
+  
   // AbortController for API requests
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -120,6 +128,8 @@ export function UnknownDocumentModal({
       setIsAutoProcessPaused(false);
       setIsDocumentProcessed(false); // Reset processed state
       processingRef.current = false; // Reset processing ref
+      setExistingFileInfo(null); // Reset file check
+      setShowReprocessConfirm(false);
       if (countdownInterval.current) {
         clearInterval(countdownInterval.current);
       }
@@ -172,11 +182,37 @@ export function UnknownDocumentModal({
     };
   }, [autoProcessCountdown, isAutoProcessPaused, identificationResult]); // Remove isProcessing from deps
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const checkFileExistence = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/documents/check-existing', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        setExistingFileInfo(result);
+        if (result.exists) {
+          setShowReprocessConfirm(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking file existence:', error);
+      // Don't block file selection on error
+    }
+  };
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         setSelectedFile(file);
+        // Check if file already exists
+        await checkFileExistence(file);
       } else {
         toast.error('Por favor, selecione um arquivo PDF');
       }
@@ -637,6 +673,67 @@ export function UnknownDocumentModal({
                   </div>
                 )}
               </div>
+
+              {/* Alert card for existing file */}
+              {existingFileInfo?.exists && showReprocessConfirm && (
+                <Card className="bg-yellow-950/20 border-yellow-700">
+                  <CardContent className="p-4">
+                    <div className="flex gap-3">
+                      <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium text-yellow-300 mb-2">
+                          Este arquivo já foi processado anteriormente
+                        </p>
+                        <div className="space-y-2 text-sm text-yellow-200/80">
+                          <p>
+                            <span className="text-zinc-400">Tipo de documento:</span>{' '}
+                            <span className="font-medium">
+                              {getDocumentTypeLabel(existingFileInfo.uploadRecord?.documentType || 'unknown')}
+                            </span>
+                          </p>
+                          <p>
+                            <span className="text-zinc-400">Status:</span>{' '}
+                            <Badge variant={existingFileInfo.uploadRecord?.status === 'completo' ? 'default' : 'secondary'}>
+                              {existingFileInfo.uploadRecord?.status || 'pendente'}
+                            </Badge>
+                          </p>
+                          {existingFileInfo.processInfo?.connected && (
+                            <div>
+                              <p className="text-zinc-400 mb-1">
+                                Conectado a {existingFileInfo.processInfo.processCount} processo(s):
+                              </p>
+                              <div className="space-y-1 ml-4">
+                                {existingFileInfo.processInfo.processes.map((proc: any) => (
+                                  <div key={proc.id} className="flex items-center gap-2">
+                                    <Link className="h-3 w-3 text-blue-400" />
+                                    <span className="text-blue-300">{proc.numeroProcesso}</span>
+                                    <span className="text-zinc-500">- {proc.empresa}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2 mt-4">
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedFile(null);
+                              setExistingFileInfo(null);
+                              setShowReprocessConfirm(false);
+                            }}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Limpar
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card className="bg-purple-950/20 border-purple-800">
                 <CardContent className="flex gap-3 p-4">
