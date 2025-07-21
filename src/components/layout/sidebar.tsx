@@ -71,7 +71,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
       items: [
         {
           title: "Processos de Importação",
-          href: "/processo-importacao",
+          href: "/processos",
           icon: FolderOpen,
           requiredRole: ['admin', 'user'],
         },

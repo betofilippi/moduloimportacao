@@ -607,6 +607,16 @@ export const KANBAN_CONFIG = {
   // Default stage for new processes
   DEFAULT_STAGE: 'solicitado',
   
+  // Legacy stage mappings (for backward compatibility)
+  STAGE_MAPPINGS: {
+    'Solicitado': 'solicitado',
+    'Em Transporte': 'em_transporte',
+    'Processamento Nacional': 'processamento_nacional',
+    'Em Transporte Local': 'em_transporte_local',
+    'Recebido': 'recebido',
+    'Auditado': 'auditado'
+  },
+  
   // Allowed transitions (optional - for future use)
   TRANSITIONS: {
     'solicitado': ['em_transporte'],

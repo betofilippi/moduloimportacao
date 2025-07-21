@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ProcessoImportacao } from '@/types/processo-importacao';
-import { Calendar, User, FileText, Package } from 'lucide-react';
+import { Calendar, User, FileText, Package, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Document type colors
@@ -35,12 +35,16 @@ interface ProcessoImportacaoCardProps {
   processo: ProcessoImportacao;
   onClick?: () => void;
   className?: string;
+  variant?: 'default' | 'compact';
+  showGrip?: boolean;
 }
 
 export function ProcessoImportacaoCard({ 
   processo, 
   onClick,
-  className 
+  className,
+  variant = 'default',
+  showGrip = false
 }: ProcessoImportacaoCardProps) {
   const [documentData, setDocumentData] = useState<{
     total: number;
@@ -149,18 +153,31 @@ export function ProcessoImportacaoCard({
       )}
       onClick={onClick}
     >
-      <CardHeader>
+      <CardHeader className={variant === 'compact' ? 'pb-3' : ''}>
         <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              {processo.numeroProcesso}
-            </CardTitle>
-            <CardDescription className="line-clamp-2">
-              {processo.descricao}
-            </CardDescription>
+          <div className="flex items-start gap-2 flex-1">
+            {showGrip && (
+              <GripVertical className="h-5 w-5 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-1 flex-1">
+              <CardTitle className={cn(
+                "flex items-center gap-2",
+                variant === 'compact' ? 'text-base' : 'text-lg'
+              )}>
+                <FileText className="h-4 w-4" />
+                {processo.numeroProcesso}
+              </CardTitle>
+              {variant !== 'compact' && (
+                <CardDescription className="line-clamp-2">
+                  {processo.descricao}
+                </CardDescription>
+              )}
+            </div>
           </div>
-          <Badge className={getStatusColor(processo.status)}>
+          <Badge className={cn(
+            getStatusColor(processo.status),
+            variant === 'compact' && 'text-xs'
+          )}>
             {getStatusLabel(processo.status)}
           </Badge>
         </div>

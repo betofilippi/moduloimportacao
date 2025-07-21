@@ -330,15 +330,21 @@ export default function ProcessosPage() {
       </div>
 
       {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'list' | 'kanban')}>
-        <TabsList className="grid w-full max-w-[400px] grid-cols-2">
-          <TabsTrigger value="list" className="flex items-center gap-2">
-            <List className="h-4 w-4" />
-            Lista
+      <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'list' | 'kanban')} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 h-12 p-1 bg-zinc-100 dark:bg-zinc-800">
+          <TabsTrigger 
+            value="list" 
+            className="flex items-center justify-center gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900 data-[state=active]:shadow-sm transition-all"
+          >
+            <List className="h-5 w-5" />
+            <span className="font-medium">Visualização em Lista</span>
           </TabsTrigger>
-          <TabsTrigger value="kanban" className="flex items-center gap-2">
-            <Layers className="h-4 w-4" />
-            Kanban
+          <TabsTrigger 
+            value="kanban" 
+            className="flex items-center justify-center gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900 data-[state=active]:shadow-sm transition-all"
+          >
+            <Layers className="h-5 w-5" />
+            <span className="font-medium">Visualização Kanban</span>
           </TabsTrigger>
         </TabsList>
 

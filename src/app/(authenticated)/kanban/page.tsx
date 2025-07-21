@@ -36,7 +36,7 @@ export default function KanbanPage() {
     }
 
     return {
-      id: record.Id || record.id,
+      id: String(record.Id || record.id),
       numeroProcesso: record.numero_processo || '',
       descricao: record.descricao || '',
       empresa: record.empresa || '',

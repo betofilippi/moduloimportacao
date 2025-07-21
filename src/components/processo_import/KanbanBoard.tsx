@@ -26,11 +26,21 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const [isDragging, setIsDragging] = useState(false);
   
+  // Helper function to normalize stage names for comparison
+  const normalizeStage = (stage: string): string => {
+    return stage
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .replace(/\s+/g, '_'); // Replace spaces with underscores
+  };
+  
   // Group processes by stage
   const processesByStage = KANBAN_CONFIG.STAGES.reduce((acc, stage) => {
-    acc[stage.id] = processos.filter(p => 
-      (p.etapa || KANBAN_CONFIG.DEFAULT_STAGE) === stage.id
-    );
+    acc[stage.id] = processos.filter(p => {
+      const processStage = p.etapa || KANBAN_CONFIG.DEFAULT_STAGE;
+      return normalizeStage(processStage) === stage.id;
+    });
     return acc;
   }, {} as Record<string, ProcessoImportacao[]>);
 
@@ -44,25 +54,42 @@ export function KanbanBoard({
     const { destination, source, draggableId } = result;
     
     // Dropped outside list
-    if (!destination) return;
+    if (!destination) {
+      console.log('Dropped outside of any droppable area');
+      return;
+    }
     
-    // No movement
+    // No movement - same column and position
     if (
       destination.droppableId === source.droppableId &&
       destination.index === source.index
     ) {
+      console.log('No movement detected');
       return;
     }
+    
+    // Log the drag operation
+    console.log('Drag operation:', {
+      processId: draggableId,
+      from: source.droppableId,
+      to: destination.droppableId
+    });
     
     // Find the process that was moved
     const processId = draggableId;
     const newStage = destination.droppableId;
+    const oldStage = source.droppableId;
     
-    // Call the stage change handler
-    if (onStageChange) {
+    // Only update if stage actually changed
+    if (oldStage !== newStage && onStageChange) {
       try {
+        // Show loading toast
+        const toastId = toast.loading('Atualizando etapa...');
+        
         await onStageChange(processId, newStage);
-        toast.success('Etapa atualizada com sucesso');
+        
+        // Update success toast
+        toast.success('Etapa atualizada com sucesso', { id: toastId });
       } catch (error) {
         console.error('Error updating stage:', error);
         toast.error('Erro ao atualizar etapa');
@@ -116,11 +143,11 @@ export function KanbanBoard({
               {/* Column Content */}
               <Droppable droppableId={stage.id}>
                 {(provided, snapshot) => (
-                  <ScrollArea
+                  <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={cn(
-                      "flex-1 bg-zinc-900/50 rounded-b-lg p-2 min-h-[400px] max-h-[calc(100vh-300px)]",
+                      "flex-1 bg-zinc-900/50 rounded-b-lg p-2 min-h-[400px] max-h-[calc(100vh-300px)] overflow-y-auto",
                       snapshot.isDraggingOver && "bg-zinc-800/50 ring-2 ring-blue-500/50"
                     )}
                   >
@@ -136,17 +163,33 @@ export function KanbanBoard({
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
+                              style={{
+                                ...provided.draggableProps.style,
+                                userSelect: 'none'
+                              }}
                               className={cn(
-                                "transition-all",
-                                snapshot.isDragging && "rotate-2 scale-105"
+                                "transition-all cursor-move select-none",
+                                snapshot.isDragging && "rotate-2 scale-105 z-50 opacity-90"
                               )}
+                              onMouseDown={(e) => {
+                                // Prevent text selection
+                                e.preventDefault();
+                              }}
+                              onClick={(e) => {
+                                // Only trigger click if not dragging
+                                if (!snapshot.isDragging && !isDragging) {
+                                  e.stopPropagation();
+                                  onProcessoClick(processo);
+                                }
+                              }}
                             >
                               <ProcessoImportacaoCard
                                 processo={processo}
-                                onClick={() => onProcessoClick(processo)}
+                                onClick={() => {}} // Disable card's own onClick
                                 variant="compact"
+                                showGrip={true}
                                 className={cn(
-                                  "cursor-pointer hover:shadow-lg transition-shadow",
+                                  "hover:shadow-lg transition-shadow pointer-events-auto",
                                   snapshot.isDragging && "shadow-xl"
                                 )}
                               />
@@ -163,7 +206,7 @@ export function KanbanBoard({
                         Nenhum processo nesta etapa
                       </div>
                     )}
-                  </ScrollArea>
+                  </div>
                 )}
               </Droppable>
             </div>
