@@ -19,6 +19,8 @@ import { ProformaInvoiceProcessingResult } from '@/services/documents/proforma-i
 import { SwiftData } from '@/services/documents/swift/types';
 import { NumerarioProcessingResult } from '@/services/documents/numerario/types';
 import { NotaFiscalProcessingResult } from '@/services/documents/nota-fiscal/types';
+import { BLProcessingResult } from '@/services/documents/bl/types';
+import { ContratoCambioProcessingResult } from '@/services/documents/contrato-cambio/types';
 import { da } from 'date-fns/locale';
 
 export interface SaveResult {
@@ -96,6 +98,14 @@ export class DocumentSaveService {
           
         case 'nota_fiscal':
           resetResult = await this.resetNotaFiscal(fileHash);
+          break;
+          
+        case 'bl':
+          resetResult = await this.resetBL(fileHash);
+          break;
+          
+        case 'contrato_cambio':
+          resetResult = await this.resetContratoCambio(fileHash);
           break;
           
         default:
@@ -192,6 +202,23 @@ export class DocumentSaveService {
     
     // Delete header
     await this.deleteRecords(NOCODB_TABLES.NOTA_FISCAL.HEADERS, fileHash);
+    
+    return { success: true };
+  }
+  
+  private async resetBL(fileHash: string): Promise<SaveResult> {
+    // Delete containers first
+    await this.deleteRecords(NOCODB_TABLES.BL.CONTAINERS, fileHash);
+    
+    // Delete header
+    await this.deleteRecords(NOCODB_TABLES.BL.HEADERS, fileHash);
+    
+    return { success: true };
+  }
+  
+  private async resetContratoCambio(fileHash: string): Promise<SaveResult> {
+    // Contrato de Câmbio only has single table
+    await this.deleteRecords(NOCODB_TABLES.CONTRATO_CAMBIO, fileHash);
     
     return { success: true };
   }
@@ -888,6 +915,138 @@ console.log('depois de preparar',preparedData);
   }
 
   /**
+   * Save BL (Bill of Lading) document
+   */
+  async saveBL(data: BLProcessingResult, options: SaveOptions = {}): Promise<SaveResult> {
+    try {
+      const { userId = 'system' } = options;
+      const timestamp = new Date().toISOString();
+
+      // Save header
+      const headerData = {
+        ...data.header,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        createdBy: userId,
+      };
+
+      // Transform header to NocoDB format
+      const transformedHeader = transformToNocoDBFormat(
+        headerData,
+        TABLE_FIELD_MAPPINGS.BL_HEADER
+      );
+      
+      // Add file hash
+      if (options.fileHash) {
+        transformedHeader.hash_arquivo_origem = options.fileHash;
+      }
+
+      // Save header
+      const savedHeader = await this.nocodb.create(
+        NOCODB_TABLES.BL.HEADERS,
+        transformedHeader
+      );
+
+      console.log('✅ Saved BL header');
+
+      // Save containers if present
+      const savedContainers = [];
+      if (data.containers && data.containers.length > 0) {
+        for (const container of data.containers) {
+          const containerData = {
+            ...container,
+            bl_number: data.header?.bl_number || savedHeader.bl_number,
+          };
+          
+          const transformedContainer = transformToNocoDBFormat(
+            containerData,
+            TABLE_FIELD_MAPPINGS.BL_CONTAINER
+          );
+          
+          // Add file hash
+          if (options.fileHash) {
+            transformedContainer.hash_arquivo_origem = options.fileHash;
+          }
+
+          const savedContainer = await this.nocodb.create(
+            NOCODB_TABLES.BL.CONTAINERS,
+            transformedContainer
+          );
+          savedContainers.push(savedContainer);
+        }
+      }
+
+      console.log('✅ Saved BL containers:', savedContainers.length);
+
+      return {
+        success: true,
+        documentId: savedHeader.bl_number || savedHeader.Id,
+        details: {
+          headers: savedHeader,
+          containers: savedContainers,
+        },
+      };
+    } catch (error) {
+      console.error('Error saving BL:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao salvar BL',
+      };
+    }
+  }
+
+  /**
+   * Save Contrato de Câmbio document
+   */
+  async saveContratoCambio(data: ContratoCambioProcessingResult, options: SaveOptions = {}): Promise<SaveResult> {
+    try {
+      const { userId = 'system' } = options;
+      const timestamp = new Date().toISOString();
+
+      // Extract data from nested structure
+      const cambioData = data.data || data;
+
+      const contractData = {
+        ...cambioData,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        createdBy: userId,
+      };
+
+      // Transform to NocoDB format
+      const transformedData = transformToNocoDBFormat(
+        contractData,
+        TABLE_FIELD_MAPPINGS.CONTRATO_CAMBIO
+      );
+      
+      // Add file hash
+      if (options.fileHash) {
+        transformedData.hash_arquivo_origem = options.fileHash;
+      }
+
+      // Save to single table
+      const savedContract = await this.nocodb.create(
+        NOCODB_TABLES.CONTRATO_CAMBIO,
+        transformedData
+      );
+
+      return {
+        success: true,
+        documentId: savedContract.contrato || savedContract.Id,
+        details: {
+          headers: savedContract,
+        },
+      };
+    } catch (error) {
+      console.error('Error saving Contrato de Câmbio:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao salvar Contrato de Câmbio',
+      };
+    }
+  }
+
+  /**
    * Generic save method that routes to specific save methods
    */
   async saveDocument(
@@ -912,6 +1071,10 @@ console.log('depois de preparar',preparedData);
         return this.saveNumerario(data as NumerarioProcessingResult, options);
       case 'notafiscal':
         return this.saveNotaFiscal(data as NotaFiscalProcessingResult, options);
+      case 'bl':
+        return this.saveBL(data as BLProcessingResult, options);
+      case 'contratocambio':
+        return this.saveContratoCambio(data as ContratoCambioProcessingResult, options);
       default:
         return {
           success: false,
@@ -1723,6 +1886,148 @@ console.log('depois de preparar',preparedData);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Erro ao atualizar Nota Fiscal',
+      };
+    }
+  }
+
+  /**
+   * Update BL (Bill of Lading) document
+   */
+  async updateBL(data: BLProcessingResult, fileHash: string): Promise<SaveResult> {
+    try {
+      // Find existing header by hash
+      const headers = await this.nocodb.find(NOCODB_TABLES.BL.HEADERS, {
+        where: `(hash_arquivo_origem,eq,${fileHash})`,
+        limit: 1
+      });
+      
+      if (headers.list.length === 0) {
+        return { success: false, error: 'BL não encontrada para atualização' };
+      }
+      
+      const headerId = headers.list[0].Id;
+      const blNumber = headers.list[0].bl_number;
+      
+      // Update header
+      const headerData = {
+        ...data.header,
+        updatedAt: new Date().toISOString(),
+      };
+      
+      const transformedHeader = transformToNocoDBFormat(
+        headerData,
+        TABLE_FIELD_MAPPINGS.BL_HEADER
+      );
+      
+      // Add ID for update
+      transformedHeader.Id = headerId;
+      
+      await this.nocodb.update(
+        NOCODB_TABLES.BL.HEADERS,
+        headerId,
+        transformedHeader
+      );
+      
+      console.log('✅ Updated BL header');
+
+      // Delete existing containers
+      await this.deleteRecords(NOCODB_TABLES.BL.CONTAINERS, fileHash);
+      
+      // Re-insert containers
+      const savedContainers = [];
+      if (data.containers && data.containers.length > 0) {
+        for (const container of data.containers) {
+          const containerData = {
+            ...container,
+            bl_number: blNumber || data.header?.bl_number,
+          };
+          
+          const transformedContainer = transformToNocoDBFormat(
+            containerData,
+            TABLE_FIELD_MAPPINGS.BL_CONTAINER
+          );
+          
+          transformedContainer.hash_arquivo_origem = fileHash;
+
+          const savedContainer = await this.nocodb.create(
+            NOCODB_TABLES.BL.CONTAINERS,
+            transformedContainer
+          );
+          savedContainers.push(savedContainer);
+        }
+      }
+      
+      console.log('✅ Updated BL containers:', savedContainers.length);
+
+      return {
+        success: true,
+        documentId: blNumber,
+        details: {
+          headers: headers.list[0],
+          containers: savedContainers,
+        },
+      };
+    } catch (error) {
+      console.error('❌ Error updating BL:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao atualizar BL',
+      };
+    }
+  }
+
+  /**
+   * Update Contrato de Câmbio document
+   */
+  async updateContratoCambio(data: ContratoCambioProcessingResult, fileHash: string): Promise<SaveResult> {
+    try {
+      // Find existing record by hash
+      const records = await this.nocodb.find(NOCODB_TABLES.CONTRATO_CAMBIO, {
+        where: `(hash_arquivo_origem,eq,${fileHash})`,
+        limit: 1
+      });
+      
+      if (records.list.length === 0) {
+        return { success: false, error: 'Contrato de Câmbio não encontrado para atualização' };
+      }
+      
+      const recordId = records.list[0].Id;
+      
+      // Extract data from nested structure
+      const cambioData = data.data || data;
+      
+      const contractData = {
+        ...cambioData,
+        updatedAt: new Date().toISOString(),
+      };
+      
+      // Transform to NocoDB format
+      const transformedData = transformToNocoDBFormat(
+        contractData,
+        TABLE_FIELD_MAPPINGS.CONTRATO_CAMBIO
+      );
+      
+      // Add ID for update
+      transformedData.Id = recordId;
+      
+      await this.nocodb.update(
+        NOCODB_TABLES.CONTRATO_CAMBIO,
+        recordId,
+        transformedData
+      );
+      
+      return {
+        success: true,
+        documentId: records.list[0].contrato || recordId.toString(),
+        details: {
+          headers: transformedData,
+        },
+      };
+    } catch (error) {
+      console.error('Error updating Contrato de Câmbio:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao atualizar Contrato de Câmbio',
       };
     }
   }

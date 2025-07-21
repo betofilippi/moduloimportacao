@@ -49,6 +49,16 @@ export * from './unknown/types';
 export * from './unknown/UnknownProcessor';
 export * from './unknown/UnknownValidator';
 
+// BL (Bill of Lading)
+export * from './bl/types';
+export * from './bl/BLProcessor';
+export * from './bl/BLValidator';
+
+// Contrato de Câmbio
+export * from './contrato-cambio/types';
+export * from './contrato-cambio/ContratoCambioProcessor';
+export * from './contrato-cambio/ContratoCambioValidator';
+
 // Auto-register processors
 import { documentProcessorFactory } from './DocumentProcessorFactory';
 import { PackingListProcessor } from './packing-list/PackingListProcessor';
@@ -59,6 +69,8 @@ import { DIProcessor } from './di/DIProcessor';
 import { NumerarioProcessor } from './numerario/NumerarioProcessor';
 import { NotaFiscalProcessor } from './nota-fiscal/NotaFiscalProcessor';
 import { UnknownDocumentProcessor } from './unknown/UnknownProcessor';
+import { BLProcessor } from './bl/BLProcessor';
+import { ContratoCambioProcessor } from './contrato-cambio/ContratoCambioProcessor';
 import { DocumentType } from './base/types';
 
 /**
@@ -101,9 +113,13 @@ export function initializeDocumentProcessors(): void {
     const unknownProcessor = new UnknownDocumentProcessor();
     documentProcessorFactory.register(DocumentType.UNKNOWN, unknownProcessor);
 
-    // TODO: Register other processors as they are implemented
-    // documentProcessorFactory.register(DocumentType.BILL_OF_LADING, new BillOfLadingProcessor());
-    // etc...
+    // Register BL processor
+    const blProcessor = new BLProcessor();
+    documentProcessorFactory.register(DocumentType.BL, blProcessor);
+
+    // Register Contrato de Câmbio processor
+    const contratoCambioProcessor = new ContratoCambioProcessor();
+    documentProcessorFactory.register(DocumentType.CONTRATO_CAMBIO, contratoCambioProcessor);
 
     const stats = documentProcessorFactory.getStatistics();
     console.log('✅ Document processors initialized successfully:', stats);

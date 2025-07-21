@@ -86,8 +86,14 @@ export function DocumentUploadForm({
     if (lowercaseName.includes('di') || lowercaseName.includes('declaracao') || lowercaseName.includes('importacao')) {
       return DocumentType.DI;
     }
-    if (lowercaseName.includes('numerario') || lowercaseName.includes('cambio')) {
+    if (lowercaseName.includes('numerario')) {
       return DocumentType.NUMERARIO;
+    }
+    if (lowercaseName.includes('bl') || lowercaseName.includes('bill') || lowercaseName.includes('lading')) {
+      return DocumentType.BL;
+    }
+    if (lowercaseName.includes('cambio') || lowercaseName.includes('contrato')) {
+      return DocumentType.CONTRATO_CAMBIO;
     }
     
     return null;
@@ -174,13 +180,16 @@ export function DocumentUploadForm({
 
       // Step 2: Process with appropriate endpoint based on document type
       let processResult;
-      // Use multi-prompt for packing list, commercial invoice, proforma invoice, swift, di, and numerario PDFs
+      // Use multi-prompt for packing list, commercial invoice, proforma invoice, swift, di, numerario, nota fiscal, bl, and contrato cambio PDFs
       if ((documentType === DocumentType.PACKING_LIST || 
            documentType === DocumentType.COMMERCIAL_INVOICE || 
            documentType === DocumentType.PROFORMA_INVOICE ||
            documentType === DocumentType.SWIFT ||
            documentType === DocumentType.DI ||
-           documentType === DocumentType.NUMERARIO || documentType === DocumentType.NOTA_FISCAL ) && fileType === '.pdf') {
+           documentType === DocumentType.NUMERARIO || 
+           documentType === DocumentType.NOTA_FISCAL ||
+           documentType === DocumentType.BL ||
+           documentType === DocumentType.CONTRATO_CAMBIO) && fileType === '.pdf') {
         // Use multi-prompt Claude processing
         const extractResponse = await fetch('/api/ocr/extract-claude-multi', {
           method: 'POST',

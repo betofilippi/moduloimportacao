@@ -51,6 +51,8 @@ function OCRPageContent() {
     saveSwift,
     saveNumerario,
     saveNotaFiscal,
+    saveBL,
+    saveContratoCambio,
     updateDI,
     updateCommercialInvoice,
     updatePackingList,
@@ -58,6 +60,8 @@ function OCRPageContent() {
     updateSwift,
     updateNumerario,
     updateNotaFiscal,
+    updateBL,
+    updateContratoCambio,
     resetDocumentData,
     saving, 
     error, 
@@ -238,6 +242,21 @@ function OCRPageContent() {
         result = await saveNotaFiscal(notaFiscalData, { fileHash: currentFileHash });
         break;
         
+      case 'bl':
+        const blData = {
+          header: processedData.header?.data || processedData.header || {},
+          containers: processedData.containers?.data || processedData.containers || []
+        };
+        result = await saveBL(blData, { fileHash: currentFileHash });
+        break;
+        
+      case 'contrato_cambio':
+        const contratoCambioData = {
+          data: processedData.data?.data || processedData.data || processedData
+        };
+        result = await saveContratoCambio(contratoCambioData, { fileHash: currentFileHash });
+        break;
+        
       default:
         toast.error(`Tipo de documento não suportado: ${selectedDocumentType}`);
         return;
@@ -391,6 +410,21 @@ function OCRPageContent() {
           items: extractedData.items || []
         };
         result = await updateNotaFiscal(notaFiscalData, currentFileHash);
+        break;
+        
+      case 'bl':
+        const blData = {
+          header: extractedData.header || {},
+          containers: extractedData.containers || []
+        };
+        result = await updateBL(blData, currentFileHash);
+        break;
+        
+      case 'contrato_cambio':
+        const contratoCambioData = {
+          data: extractedData.data || extractedData
+        };
+        result = await updateContratoCambio(contratoCambioData, currentFileHash);
         break;
         
       default:

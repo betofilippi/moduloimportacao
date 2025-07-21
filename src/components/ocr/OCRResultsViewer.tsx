@@ -10,6 +10,8 @@ import { SwiftViewer } from './results/viewers/SwiftViewer';
 import { DIViewer } from './results/viewers/DIViewer';
 import { NumerarioViewer } from './results/viewers/NumerarioViewer';
 import { NotaFiscalViewer } from './results/viewers/NotaFiscalViewer';
+import { BLViewer } from './results/viewers/BLViewer';
+import { ContratoCambioViewer } from './results/viewers/ContratoCambioViewer';
 
 interface OCRResultsViewerProps {
   results: {
@@ -110,6 +112,28 @@ export function OCRResultsViewer({ results, variant = 'summary', onSave }: OCRRe
   if (variant === 'summary' && documentType === 'nota_fiscal') {
     console.log('Rendering NotaFiscalViewer summary');
     return <NotaFiscalViewer data={results?.ocr?.data} results={results} variant="summary" onSave={onSave} onSaveToDatabase={onSave} />;
+  }
+
+  // Se for BL (Bill of Lading)
+  if (variant === 'detailed' && documentType === 'bl') {
+    console.log('Rendering BLViewer detailed');
+    return <BLViewer data={results?.ocr?.data} variant="detailed" onSave={onSave} onUpdate={onSave} />;
+  }
+  
+  if (variant === 'summary' && documentType === 'bl') {
+    console.log('Rendering BLViewer summary');
+    return <BLViewer data={results?.ocr?.data} variant="summary" onSave={onSave} onUpdate={onSave} />;
+  }
+
+  // Se for Contrato de Câmbio
+  if (variant === 'detailed' && documentType === 'contrato_cambio') {
+    console.log('Rendering ContratoCambioViewer detailed');
+    return <ContratoCambioViewer data={results?.ocr?.data} variant="detailed" onSave={onSave} onUpdate={onSave} />;
+  }
+  
+  if (variant === 'summary' && documentType === 'contrato_cambio') {
+    console.log('Rendering ContratoCambioViewer summary');
+    return <ContratoCambioViewer data={results?.ocr?.data} variant="summary" onSave={onSave} onUpdate={onSave} />;
   }
   
   // Fallback: Se temos extractedData como array ou multiPrompt, provavelmente é packing list

@@ -193,7 +193,9 @@ function getDocumentPrompts(documentType: MultiPromptDocumentType): PromptStep[]
       'swift': DocumentType.SWIFT,
       'di': DocumentType.DI,
       'numerario': DocumentType.NUMERARIO,
-      'nota_fiscal': DocumentType.NOTA_FISCAL
+      'nota_fiscal': DocumentType.NOTA_FISCAL,
+      'bl': DocumentType.BL,
+      'contrato_cambio': DocumentType.CONTRATO_CAMBIO
     };
     
     const docType = typeMap[documentType];
@@ -231,7 +233,7 @@ function getDocumentTotalSteps(documentType: MultiPromptDocumentType): number {
  * @returns Array of required field names
  */
 function getRequiredFields(documentType: DocumentType): string[] {
-  const requiredFieldsMap: Record<DocumentType, string[]> = {
+  const requiredFieldsMap: Partial<Record<DocumentType, string[]>> = {
     commercial_invoice: ['invoiceNumber', 'invoiceDate', 'totalAmount', 'supplierName'],
     packing_list: ['containerNumber', 'totalWeight', 'items'],
     di: ['diNumber', 'registrationDate', 'customsValue'],
@@ -241,6 +243,8 @@ function getRequiredFields(documentType: DocumentType): string[] {
     ci: ['ciNumber', 'issueDate', 'description'],
     afrmm: ['afrmmNumber', 'issueDate', 'amount', 'dueDate'],
     proforma_invoice: ['proformaNumber', 'issueDate', 'totalAmount', 'supplierName'],
+    bl: ['bl_number', 'shipper', 'consignee', 'port_of_loading', 'port_of_discharge'],
+    contrato_cambio: ['contrato', 'data', 'corretora', 'moeda', 'valor_estrangeiro', 'taxa_cambial', 'valor_nacional'],
   };
   
   return requiredFieldsMap[documentType] || [];

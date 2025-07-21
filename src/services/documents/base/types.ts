@@ -10,6 +10,8 @@ export enum DocumentType {
   NOTA_FISCAL = 'nota_fiscal',
   CI = 'ci',
   AFRMM = 'afrmm',
+  BL = 'bl',
+  CONTRATO_CAMBIO = 'contrato_cambio',
   UNKNOWN = 'unknown',
 }
 

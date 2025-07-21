@@ -37,6 +37,13 @@ export const NOCODB_TABLES = {
   // Single Tables
   SWIFT: "m9w1hyki9w77zd7", 
   NUMERARIO: "m072re89i8a8nco",
+  CONTRATO_CAMBIO: "mqf3r3nhr9ixiwx",
+  
+  // BL Tables
+  BL: {
+    HEADERS: "m9xnb8tnm1nmvxy",
+    CONTAINERS: "m6xsvffd08d9igl"
+  },
 
   // Nota Fiscal Tables
   NOTA_FISCAL: {
@@ -393,6 +400,65 @@ export const TABLE_FIELD_MAPPINGS = {
     aliquota_ipi: "aliquotaIpi",
     reference: "reference"
   },
+  
+  // BL Header Fields - Mapeamento inglês para português (OCR -> Banco)
+  BL_HEADER: {
+    invoiceNumber: "invoiceNumber",
+    bl_number: "bl_number",
+    issue_date: "issue_date",
+    onboard_date: "onboard_date",
+    shipper: "shipper",
+    consignee: "consignee",
+    notify_party: "notify_party",
+    cnpj_consignee: "cnpj_consignee",
+    place_of_receipt: "place_of_receipt",
+    port_of_loading: "port_of_loading",
+    port_of_discharge: "port_of_discharge",
+    place_of_delivery: "place_of_delivery",
+    freight_term: "freight_term",
+    cargo_description: "cargo_description",
+    ncm_codes: "ncm_codes",
+    package_type: "package_type",
+    total_packages: "total_packages",
+    total_weight_kg: "total_weight_kg",
+    total_volume_cbm: "total_volume_cbm",
+    freight_value_usd: "freight_value_usd",
+    freight_value_brl: "freight_value_brl",
+    freight_agent: "freight_agent",
+    vessel_name: "vessel_name",
+    voy_number: "voy_number"
+  },
+  
+  // BL Container Fields - Mapeamento inglês para português (OCR -> Banco)
+  BL_CONTAINER: {
+    invoiceNumber: "invoiceNumber",
+    container_number: "container_number",
+    container_size: "container_size",
+    seal_number: "seal_number",
+    booking_number: "booking_number",
+    total_packages: "total_packages",
+    gross_weight_kg: "gross_weight_kg",
+    volume_cbm: "volume_cbm",
+    bl_number: "bl_number"
+  },
+  
+  // Contrato de Câmbio Fields - Mapeamento inglês para português (OCR -> Banco)
+  CONTRATO_CAMBIO: {
+    contrato: "contrato",
+    data: "data",
+    corretora: "corretora",
+    moeda: "moeda",
+    valor_estrangeiro: "valor_estrangeiro",
+    taxa_cambial: "taxa_cambial",
+    valor_nacional: "valor_nacional",
+    fatura: "invoiceNumber",
+    recebedor: "recebedor",
+    pais: "pais",
+    endereco: "endereco",
+    conta_bancaria: "conta_bancaria",
+    swift: "swift",
+    banco_beneficiario: "banco_beneficiario"
+  },
 } as const;
 
 /**
@@ -412,13 +478,15 @@ export function getTableId(
     | "COMMERCIAL_INVOICE"
     | "PACKING_LIST"
     | "PROFORMA_INVOICE"
-    | "NOTA_FISCAL" => {
+    | "NOTA_FISCAL"
+    | "BL" => {
     return (
       type === "DI" ||
       type === "COMMERCIAL_INVOICE" ||
       type === "PACKING_LIST" ||
       type === "PROFORMA_INVOICE" ||
-      type === "NOTA_FISCAL"
+      type === "NOTA_FISCAL" ||
+      type === "BL"
     );
   };
 
@@ -439,12 +507,17 @@ export function getTableId(
       (tableType === "HEADERS" || tableType === "ITEMS")
     ) {
       return tables[tableType as keyof typeof tables];
+    } else if (
+      upperType === "BL" &&
+      (tableType === "HEADERS" || tableType === "CONTAINERS")
+    ) {
+      return tables[tableType as keyof typeof tables];
     } else {
       throw new Error(`Invalid table type ${tableType} for ${documentType}`);
     }
   }
 
-  // For single table documents (SWIFT, NUMERARIO)
+  // For single table documents (SWIFT, NUMERARIO, CONTRATO_CAMBIO)
   const tableId = NOCODB_TABLES[upperType as keyof typeof NOCODB_TABLES];
   if (typeof tableId === "string") {
     return tableId;

@@ -36,6 +36,8 @@ export interface UseDocumentSaveReturn {
   saveSwift: (data: any, options?: SaveOptions) => Promise<SaveResult>;
   saveNumerario: (data: any, options?: SaveOptions) => Promise<SaveResult>;
   saveNotaFiscal: (data: any, options?: SaveOptions) => Promise<SaveResult>;
+  saveBL: (data: any, options?: SaveOptions) => Promise<SaveResult>;
+  saveContratoCambio: (data: any, options?: SaveOptions) => Promise<SaveResult>;
   updateDI: (data: any, fileHash: string) => Promise<SaveResult>;
   updateCommercialInvoice: (data: any, fileHash: string) => Promise<SaveResult>;
   updatePackingList: (data: any, fileHash: string) => Promise<SaveResult>;
@@ -43,6 +45,8 @@ export interface UseDocumentSaveReturn {
   updateSwift: (data: any, fileHash: string) => Promise<SaveResult>;
   updateNumerario: (data: any, fileHash: string) => Promise<SaveResult>;
   updateNotaFiscal: (data: any, fileHash: string) => Promise<SaveResult>;
+  updateBL: (data: any, fileHash: string) => Promise<SaveResult>;
+  updateContratoCambio: (data: any, fileHash: string) => Promise<SaveResult>;
   resetDocumentData: (
     fileHash: string,
     documentType: string
@@ -240,6 +244,36 @@ export function useDocumentSave(): UseDocumentSaveReturn {
     [documentSaveService, handleSave, user]
   );
 
+  const saveBL = useCallback(
+    async (data: any, options?: SaveOptions): Promise<SaveResult> => {
+      const saveOptions = {
+        ...options,
+        userId: user?.email || options?.userId || "anonymous",
+      };
+
+      return handleSave(
+        () => documentSaveService.saveBL(data, saveOptions),
+        "Bill of Lading"
+      );
+    },
+    [documentSaveService, handleSave, user]
+  );
+
+  const saveContratoCambio = useCallback(
+    async (data: any, options?: SaveOptions): Promise<SaveResult> => {
+      const saveOptions = {
+        ...options,
+        userId: user?.email || options?.userId || "anonymous",
+      };
+
+      return handleSave(
+        () => documentSaveService.saveContratoCambio(data, saveOptions),
+        "Contrato de Câmbio"
+      );
+    },
+    [documentSaveService, handleSave, user]
+  );
+
   const resetDocumentData = useCallback(
     async (fileHash: string, documentType: string): Promise<SaveResult> => {
       setSaving(true);
@@ -425,6 +459,26 @@ export function useDocumentSave(): UseDocumentSaveReturn {
     [documentSaveService, handleUpdate]
   );
 
+  const updateBL = useCallback(
+    async (data: any, fileHash: string): Promise<SaveResult> => {
+      return handleUpdate(
+        () => documentSaveService.updateBL(data, fileHash),
+        "Bill of Lading"
+      );
+    },
+    [documentSaveService, handleUpdate]
+  );
+
+  const updateContratoCambio = useCallback(
+    async (data: any, fileHash: string): Promise<SaveResult> => {
+      return handleUpdate(
+        () => documentSaveService.updateContratoCambio(data, fileHash),
+        "Contrato de Câmbio"
+      );
+    },
+    [documentSaveService, handleUpdate]
+  );
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -441,6 +495,8 @@ export function useDocumentSave(): UseDocumentSaveReturn {
     saveSwift,
     saveNumerario,
     saveNotaFiscal,
+    saveBL,
+    saveContratoCambio,
     updateDI,
     updateCommercialInvoice,
     updatePackingList,
@@ -448,6 +504,8 @@ export function useDocumentSave(): UseDocumentSaveReturn {
     updateSwift,
     updateNumerario,
     updateNotaFiscal,
+    updateBL,
+    updateContratoCambio,
     resetDocumentData,
     clearError,
   };

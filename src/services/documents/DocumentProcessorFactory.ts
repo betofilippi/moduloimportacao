@@ -204,6 +204,20 @@ export class DocumentProcessorFactory implements ProcessorRegistry {
         supportedFormats: ['pdf'],
         hasMultiStep: false
       },
+      {
+        value: DocumentType.BL,
+        label: 'Bill of Lading (BL)',
+        description: 'Conhecimento de embarque marítimo',
+        supportedFormats: ['pdf'],
+        hasMultiStep: true
+      },
+      {
+        value: DocumentType.CONTRATO_CAMBIO,
+        label: 'Contrato de Câmbio',
+        description: 'Contrato de câmbio para operações de importação/exportação',
+        supportedFormats: ['pdf'],
+        hasMultiStep: false
+      },
       /*{
         value: DocumentType.CI,
         label: 'Certificado de Importação',
