@@ -81,6 +81,29 @@ export async function getSession() {
   }
 }
 
+// Secure session getter that validates with the server
+export async function getSecureSession() {
+  const supabase = await createSupabaseServerClient();
+  
+  try {
+    // Use getUser() to validate the session with Supabase Auth server
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error || !user) {
+      console.error('Error getting authenticated user:', error);
+      return null;
+    }
+    
+    // Get the session after validating the user
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    return session;
+  } catch (error) {
+    console.error('Error in getSecureSession:', error);
+    return null;
+  }
+}
+
 export async function getUser() {
   const supabase = await createSupabaseServerClient();
   

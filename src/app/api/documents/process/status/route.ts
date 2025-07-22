@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/supabase-server';
+import { getSecureSession } from '@/lib/supabase-server';
 
 /**
  * Check status of async document processing
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   
   try {
     // Check authentication
-    const session = await getSession();
+    const session = await getSecureSession();
     if (!session?.user) {
       console.log('❌ [PROCESS STATUS] Unauthorized access attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

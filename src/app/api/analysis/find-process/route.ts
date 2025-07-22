@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/supabase-server';
+import { getSecureSession } from '@/lib/supabase-server';
 import { getNocoDBService } from '@/lib/services/nocodb';
 import { NOCODB_TABLES } from '@/config/nocodb-tables';
 import Anthropic from '@anthropic-ai/sdk';
@@ -29,7 +29,7 @@ interface ProcessMatchRequest {
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getSession();
+    const session = await getSecureSession();
     if (!session?.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -217,7 +217,7 @@ If no good matches are found, return an empty array.
 export async function GET(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getSession();
+    const session = await getSecureSession();
     if (!session?.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/supabase-server';
+import { getSecureSession } from '@/lib/supabase-server';
 import { getProcessDocumentService } from '@/lib/services/ProcessDocumentService';
 import { getNocoDBService } from '@/lib/services/nocodb';
 import { NOCODB_TABLES } from '@/config/nocodb-tables';
@@ -25,7 +25,7 @@ interface ConnectDocumentRequest {
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getSession();
+    const session = await getSecureSession();
     if (!session?.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getSession();
+    const session = await getSecureSession();
     if (!session?.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },

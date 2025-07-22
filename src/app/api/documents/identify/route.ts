@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/supabase-server';
+import { getSecureSession } from '@/lib/supabase-server';
 import { documentTypeMapping } from '@/services/documents/unknown/prompts';
+import { internalFetch, fileToBuffer } from '@/lib/internal-fetch';
 
 /**
  * STEP 1: Upload and identify document type
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   
   try {
     // Check authentication
-    const session = await getSession();
+    const session = await getSecureSession();
     if (!session?.user) {
       console.log('❌ [IDENTIFY] Unauthorized access attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -42,13 +43,10 @@ export async function POST(request: NextRequest) {
       uploadFormData.append('file', file);
       uploadFormData.append('documentType', 'unknown');
       
-      const uploadResponse = await fetch(
+      const uploadResponse = await internalFetch(
         new URL('/api/ocr/upload', request.url).toString(),
         {
           method: 'POST',
-          headers: {
-            'Cookie': request.headers.get('cookie') || ''
-          },
           body: uploadFormData
         }
       );
@@ -75,13 +73,12 @@ export async function POST(request: NextRequest) {
         fileHash: uploadResult.data.fileHash
       };
 
-      const extractResponse = await fetch(
+      const extractResponse = await internalFetch(
         new URL('/api/ocr/extract-claude-multi', request.url).toString(),
         {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Cookie': request.headers.get('cookie') || ''
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(extractData)
         }

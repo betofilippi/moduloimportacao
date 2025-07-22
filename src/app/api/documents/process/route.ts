@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/supabase-server';
+import { getSecureSession } from '@/lib/supabase-server';
 import { DocumentType } from '@/services/documents/base/types';
 
 /**
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   
   try {
     // Check authentication
-    const session = await getSession();
+    const session = await getSecureSession();
     if (!session?.user) {
       console.log('❌ [PROCESS] Unauthorized access attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
