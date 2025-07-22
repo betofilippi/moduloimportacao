@@ -922,6 +922,11 @@ console.log('depois de preparar',preparedData);
       const { userId = 'system' } = options;
       const timestamp = new Date().toISOString();
 
+      console.log('saveBL - Raw data received:', data);
+      console.log('saveBL - Header data:', data.header);
+      console.log('saveBL - Containers data:', data.containers);
+      console.log('saveBL - fileHash:', options.fileHash);
+
       // Save header
       const headerData = {
         ...data.header,
@@ -940,6 +945,8 @@ console.log('depois de preparar',preparedData);
       if (options.fileHash) {
         transformedHeader.hash_arquivo_origem = options.fileHash;
       }
+
+      console.log('saveBL - Transformed header:', transformedHeader);
 
       // Save header
       const savedHeader = await this.nocodb.create(
@@ -1003,11 +1010,30 @@ console.log('depois de preparar',preparedData);
       const { userId = 'system' } = options;
       const timestamp = new Date().toISOString();
 
-      // Extract data from nested structure
-      const cambioData = data.data || data;
+      // The data should come directly as the contract object
+      const cambioData = data as any;
 
+      console.log('saveContratoCambio - Raw data received:', data);
+      console.log('saveContratoCambio - Data type:', typeof data);
+      console.log('saveContratoCambio - Data keys:', Object.keys(data || {}));
+      console.log('saveContratoCambio - fileHash:', options.fileHash);
+
+      // Prepare the contract data with all fields
       const contractData = {
-        ...cambioData,
+        contrato: cambioData.contrato,
+        data: cambioData.data,
+        corretora: cambioData.corretora,
+        moeda: cambioData.moeda,
+        valor_estrangeiro: cambioData.valor_estrangeiro,
+        taxa_cambial: cambioData.taxa_cambial,
+        valor_nacional: cambioData.valor_nacional,
+        fatura: cambioData.fatura,
+        recebedor: cambioData.recebedor,
+        pais: cambioData.pais,
+        endereco: cambioData.endereco,
+        conta_bancaria: cambioData.conta_bancaria,
+        swift: cambioData.swift,
+        banco_beneficiario: cambioData.banco_beneficiario,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: userId,
@@ -1023,6 +1049,8 @@ console.log('depois de preparar',preparedData);
       if (options.fileHash) {
         transformedData.hash_arquivo_origem = options.fileHash;
       }
+
+      console.log('saveContratoCambio - Transformed data:', transformedData);
 
       // Save to single table
       const savedContract = await this.nocodb.create(
@@ -1993,11 +2021,29 @@ console.log('depois de preparar',preparedData);
       
       const recordId = records.list[0].Id;
       
-      // Extract data from nested structure
-      const cambioData = data.data || data;
-      
+      // The data should come directly as the contract object
+      const cambioData = data as any;
+
+      console.log('updateContratoCambio - Raw data received:', data);
+      console.log('updateContratoCambio - Data type:', typeof data);
+      console.log('updateContratoCambio - Data keys:', Object.keys(data || {}));
+
+      // Prepare the contract data with all fields
       const contractData = {
-        ...cambioData,
+        contrato: cambioData.contrato,
+        data: cambioData.data,
+        corretora: cambioData.corretora,
+        moeda: cambioData.moeda,
+        valor_estrangeiro: cambioData.valor_estrangeiro,
+        taxa_cambial: cambioData.taxa_cambial,
+        valor_nacional: cambioData.valor_nacional,
+        fatura: cambioData.fatura,
+        recebedor: cambioData.recebedor,
+        pais: cambioData.pais,
+        endereco: cambioData.endereco,
+        conta_bancaria: cambioData.conta_bancaria,
+        swift: cambioData.swift,
+        banco_beneficiario: cambioData.banco_beneficiario,
         updatedAt: new Date().toISOString(),
       };
       
@@ -2009,6 +2055,8 @@ console.log('depois de preparar',preparedData);
       
       // Add ID for update
       transformedData.Id = recordId;
+      
+      console.log('updateContratoCambio - Transformed data:', transformedData);
       
       await this.nocodb.update(
         NOCODB_TABLES.CONTRATO_CAMBIO,

@@ -36,7 +36,25 @@ export function ContratoCambioViewer(props: BaseViewerProps) {
   } = props;
 
   // Extract the data from the nested structure
-  const contractData = (rawData as any)?.data || rawData || {};
+  // The data comes in as structuredResult.header.data
+  const extractData = (data: any): ContratoCambioData => {
+    if (data?.structuredResult?.header?.data) {
+      return data.structuredResult.header.data;
+    }
+    if (data?.header?.data) {
+      return data.header.data;
+    }
+    if (data?.data) {
+      return data.data;
+    }
+    return data || {};
+  };
+
+  const contractData = extractData(rawData);
+  
+  // Debug log to check data structure
+  console.log('ContratoCambioViewer - Raw data:', rawData);
+  console.log('ContratoCambioViewer - Extracted data:', contractData);
 
   const {
     isEditing,
@@ -45,9 +63,9 @@ export function ContratoCambioViewer(props: BaseViewerProps) {
     handleSave,
     handleCancel,
     setEditedData
-  } = useViewerState({ data: contractData }, props);
+  } = useViewerState(contractData, props);
 
-  const cambioData = editedData.data as ContratoCambioData;
+  const cambioData = editedData as ContratoCambioData;
 
   // Define fields for each section
   const contractFields = [
@@ -234,7 +252,7 @@ export function ContratoCambioViewer(props: BaseViewerProps) {
           onChange={(field, value) => {
             setEditedData(prev => ({
               ...prev,
-              data: { ...cambioData, [field]: value }
+              [field]: value
             }));
           }}
         />
@@ -247,7 +265,7 @@ export function ContratoCambioViewer(props: BaseViewerProps) {
           onChange={(field, value) => {
             setEditedData(prev => ({
               ...prev,
-              data: { ...cambioData, [field]: value }
+              [field]: value
             }));
           }}
         />
@@ -260,7 +278,7 @@ export function ContratoCambioViewer(props: BaseViewerProps) {
           onChange={(field, value) => {
             setEditedData(prev => ({
               ...prev,
-              data: { ...cambioData, [field]: value }
+              [field]: value
             }));
           }}
         />
@@ -273,7 +291,7 @@ export function ContratoCambioViewer(props: BaseViewerProps) {
           onChange={(field, value) => {
             setEditedData(prev => ({
               ...prev,
-              data: { ...cambioData, [field]: value }
+              [field]: value
             }));
           }}
         />

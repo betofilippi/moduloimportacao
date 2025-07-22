@@ -251,9 +251,8 @@ function OCRPageContent() {
         break;
         
       case 'contrato_cambio':
-        const contratoCambioData = {
-          data: processedData.data?.data || processedData.data || processedData
-        };
+        // Contrato de Câmbio tem dados no header
+        const contratoCambioData = processedData.header?.data || processedData.header || processedData;
         result = await saveContratoCambio(contratoCambioData, { fileHash: currentFileHash });
         break;
         
@@ -421,9 +420,7 @@ function OCRPageContent() {
         break;
         
       case 'contrato_cambio':
-        const contratoCambioData = {
-          data: extractedData.data || extractedData
-        };
+        const contratoCambioData = extractedData.header?.data || extractedData.header || extractedData;
         result = await updateContratoCambio(contratoCambioData, currentFileHash);
         break;
         

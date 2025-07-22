@@ -57,12 +57,105 @@ interface BLData {
 
 export function BLViewer(props: BaseViewerProps) {
   const {
-    data,
+    data: rawData,
     variant = 'detailed',
     readonly = false,
     className,
     onUpdate
   } = props;
+
+  // Extract BL data from different possible structures
+  const extractBLData = (data: any): BLData => {
+    // Check for multi-step OCR result pattern
+    if (data?.multiPrompt?.steps) {
+      const headerStep = data.multiPrompt.steps.find((s: any) => s.stepName === 'Header');
+      const containerStep = data.multiPrompt.steps.find((s: any) => s.stepName === 'Containers');
+      
+      let header = {};
+      let containers: any[] = [];
+      
+      // Parse header data
+      if (headerStep?.result) {
+        try {
+          header = JSON.parse(headerStep.result);
+        } catch (e) {
+          console.error('Error parsing BL header:', e);
+        }
+      }
+      
+      // Parse containers data
+      if (containerStep?.result) {
+        try {
+          const containerData = JSON.parse(containerStep.result);
+          // Container data might be a single object or array
+          containers = Array.isArray(containerData) ? containerData : [containerData];
+        } catch (e) {
+          console.error('Error parsing BL containers:', e);
+        }
+      }
+      
+      return { header, containers };
+    }
+    
+    // Check for structuredResult pattern (from OCR)
+    if (data?.structuredResult) {
+      // For BL, structuredResult might have header.data directly
+      if (data.structuredResult.header?.data) {
+        const headerData = data.structuredResult.header.data;
+        
+        // Try to parse if it's a string
+        if (typeof headerData === 'string') {
+          try {
+            const parsed = JSON.parse(headerData);
+            return {
+              header: parsed,
+              containers: data.structuredResult.containers?.data || []
+            };
+          } catch (e) {
+            console.error('Error parsing header data string:', e);
+          }
+        }
+        
+        return {
+          header: headerData || {},
+          containers: data.structuredResult.containers?.data || []
+        };
+      }
+      
+      // Sometimes the header data is directly in structuredResult.header
+      return {
+        header: data.structuredResult.header || {},
+        containers: data.structuredResult.containers || []
+      };
+    }
+    
+    // Check for direct header/containers structure
+    if (data?.header || data?.containers) {
+      return {
+        header: data.header || {},
+        containers: data.containers || []
+      };
+    }
+    
+    // If data has these fields directly, wrap them
+    if (data?.bl_number || data?.shipper || data?.consignee) {
+      return {
+        header: data,
+        containers: []
+      };
+    }
+    
+    // Default: assume it's already in the correct format
+    return data || { header: {}, containers: [] };
+  };
+
+  const blData = extractBLData(rawData);
+  
+  // Debug logs
+  console.log('BLViewer - Raw data:', rawData);
+  console.log('BLViewer - Extracted BL data:', blData);
+  console.log('BLViewer - Header:', blData.header);
+  console.log('BLViewer - Containers:', blData.containers);
 
   const {
     isEditing,
@@ -71,11 +164,11 @@ export function BLViewer(props: BaseViewerProps) {
     handleSave,
     handleCancel,
     setEditedData
-  } = useViewerState(data || {}, props);
+  } = useViewerState(blData, props);
 
-  const blData = editedData as BLData;
-  const header = blData.header || {};
-  const containers = blData.containers || [];
+  const editedBLData = editedData as BLData;
+  const header = editedBLData.header || {};
+  const containers = editedBLData.containers || [];
 
   // Define fields for header section
   const headerFields = [

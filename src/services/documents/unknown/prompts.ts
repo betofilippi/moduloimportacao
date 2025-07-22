@@ -219,8 +219,8 @@ export const documentTypeMapping: Record<string, string> = {
   'DI': 'di',
   'NUMERARIO': 'numerario',
   'NOTA_FISCAL_TRADING': 'nota_fiscal',
-  'BILL_OF_LADING': 'other', // Not yet implemented
-  'CONTRATO_CAMBIO': 'other', // Not yet implemented  
+  'BILL_OF_LADING': 'bl',
+  'CONTRATO_CAMBIO': 'contrato_cambio',
   'COMPROVANTE_CAMBIO': 'other', // Not yet implemented
   'DESCONHECIDO': 'unknown'
 };

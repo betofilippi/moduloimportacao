@@ -140,6 +140,20 @@ export async function POST(request: NextRequest) {
           });
           break;
           
+        case DocumentType.BL:
+          saveResult = await saveService.saveBL(dataToSave, {
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
+          });
+          break;
+          
+        case DocumentType.CONTRATO_CAMBIO:
+          saveResult = await saveService.saveContratoCambio(dataToSave, {
+            userId: auth.user.id,
+            fileHash: metadata?.fileHash
+          });
+          break;
+          
         default:
           saveResult = {
             success: false,

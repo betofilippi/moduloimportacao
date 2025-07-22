@@ -130,7 +130,6 @@
 
   6. Limitações e Problemas
 
-  1. Erro na linha 371: loadProcessos() não existe, deveria ser fetchProcessos()
   2. Funcionalidades Não Implementadas:
     - Filtros avançados
     - Exportação de dados
