@@ -29,6 +29,16 @@ export async function POST(request: NextRequest) {
       originalFileName,
       storagePath
     });
+    
+    console.log('📊 [PROCESS] ExtractedData structure:', {
+      hasStructuredResult: !!extractedData?.structuredResult,
+      hasSteps: !!extractedData?.steps,
+      hasExtractedData: !!extractedData?.extractedData,
+      keys: Object.keys(extractedData || {}),
+      firstStepResult: extractedData?.steps?.[0]?.result ? 
+        (typeof extractedData.steps[0].result === 'string' ? 'string' : 'object') : 
+        'no steps'
+    });
 
     // Validate inputs
     if (!documentType || !extractedData || !fileHash) {
@@ -56,6 +66,10 @@ export async function POST(request: NextRequest) {
       if (extractedData.structuredResult) {
         structuredData = extractedData.structuredResult;
         console.log('📊 [PROCESS] Using structured result from multi-step extraction');
+      } else if (extractedData.steps && extractedData.steps.length > 0) {
+        // Handle multi-step OCR format
+        structuredData = extractedData;
+        console.log('📊 [PROCESS] Using multi-step OCR format with steps');
       } else if (extractedData.extractedData) {
         structuredData = extractedData.extractedData;
         console.log('📊 [PROCESS] Using extracted data');
@@ -65,6 +79,9 @@ export async function POST(request: NextRequest) {
         console.log('📊 [PROCESS] Using direct data format');
       }
 
+      // Log the actual structured data for debugging
+      console.log('🔍 [PROCESS] Structured data:', JSON.stringify(structuredData, null, 2));
+      
       // Log key fields based on document type
       console.log('🔍 [PROCESS] Processing key fields:', getKeyFields(documentType, structuredData));
 
@@ -178,6 +195,19 @@ function validateDocumentData(documentType: string, data: any): string[] {
     case DocumentType.NOTA_FISCAL:
       if (!data.header?.data) errors.push('Missing header data');
       break;
+      
+    case DocumentType.BL:
+      // BL uses multi-step with header and containers
+      if (!data.header?.data) errors.push('Missing header data');
+      break;
+      
+    case DocumentType.CONTRATO_CAMBIO:
+      // Contrato de Câmbio can have data in various structures
+      const hasContractData = data.header?.data || data.data || data.contrato || 
+                             (data.steps && data.steps.length > 0 && data.steps[0].result) ||
+                             data.valor_estrangeiro; // Direct fields
+      if (!hasContractData) errors.push('Missing contract data');
+      break;
   }
   
   return errors;
@@ -240,6 +270,41 @@ function getKeyFields(documentType: string, data: any): Record<string, any> {
         nfeNumber: data.header?.data?.nfe_number,
         issuerCNPJ: data.header?.data?.issuer_cnpj,
         totalValue: data.header?.data?.total_value
+      };
+    
+    case DocumentType.BL:
+      return {
+        blNumber: data.header?.data?.bl_number,
+        issueDate: data.header?.data?.issue_date,
+        shipper: data.header?.data?.shipper,
+        consignee: data.header?.data?.consignee,
+        containerCount: data.containers?.data?.length || 0
+      };
+    
+    case DocumentType.CONTRATO_CAMBIO:
+      // Handle multiple possible data structures for Contrato de Câmbio
+      let contractData;
+      if (data.header?.data) {
+        // Multi-step format with header.data structure (from structuredResult)
+        contractData = data.header.data;
+      } else if (data.steps && data.steps.length > 0 && data.steps[0].result) {
+        // Multi-step format with steps array
+        contractData = typeof data.steps[0].result === 'string' 
+          ? JSON.parse(data.steps[0].result) 
+          : data.steps[0].result;
+      } else if (data.data?.data) {
+        contractData = data.data.data;
+      } else if (data.data) {
+        contractData = data.data;
+      } else {
+        contractData = data;
+      }
+      
+      return {
+        contrato: contractData.contrato,
+        data: contractData.data,
+        valorEstrangeiro: contractData.valor_estrangeiro,
+        fatura: contractData.fatura
       };
     
     default:

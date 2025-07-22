@@ -51,6 +51,7 @@ interface ProcessSelectionModalProps {
   onCreateNewProcess: () => void;
   onSkipAttachment?: () => void;
   onSuccessfulConnection?: (processId: string) => void; // New callback
+  isDocumentWithoutInvoice?: boolean; // New prop for BL and Contrato de Câmbio
 }
 
 export function ProcessSelectionModal({
@@ -63,7 +64,8 @@ export function ProcessSelectionModal({
   onProcessSelect,
   onCreateNewProcess,
   onSkipAttachment,
-  onSuccessfulConnection
+  onSuccessfulConnection,
+  isDocumentWithoutInvoice = false
 }: ProcessSelectionModalProps) {
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
   const [isAttaching, setIsAttaching] = useState(false);
@@ -82,7 +84,7 @@ export function ProcessSelectionModal({
       // Auto-select the single process
       setSelectedProcessId(processes[0].id);
       // Start countdown
-      setAutoConnectCountdown(9);
+      setAutoConnectCountdown(10);
     }
     
     // Cleanup on close
@@ -229,7 +231,9 @@ export function ProcessSelectionModal({
           </DialogTitle>
           <DialogDescription>
             Documento <span className="text-blue-400 font-medium">{getDocumentTypeLabel(documentType)}</span> salvo com sucesso. 
-            Selecione um processo para anexar ou crie um novo.
+            {isDocumentWithoutInvoice 
+              ? 'Como este documento não possui número de invoice, selecione manualmente o processo ao qual ele pertence.'
+              : 'Selecione um processo para anexar ou crie um novo.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -362,11 +366,14 @@ export function ProcessSelectionModal({
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Search className="h-12 w-12 text-zinc-600 mb-4" />
                 <p className="text-lg font-medium text-zinc-300 mb-2">
-                  Nenhum processo relacionado encontrado
+                  {isDocumentWithoutInvoice 
+                    ? 'Nenhum processo ativo encontrado'
+                    : 'Nenhum processo relacionado encontrado'}
                 </p>
                 <p className="text-sm text-zinc-400 text-center max-w-md">
-                  Não encontramos processos que correspondam a este documento. 
-                  Você pode criar um novo processo ou pular esta etapa.
+                  {isDocumentWithoutInvoice 
+                    ? 'Não há processos ativos no sistema. Crie um processo primeiro na tela de processos.'
+                    : 'Não encontramos processos que correspondam a este documento. Você pode criar um novo processo ou pular esta etapa.'}
                 </p>
               </CardContent>
             </Card>
@@ -391,6 +398,7 @@ export function ProcessSelectionModal({
             </div>
             
             <div className="flex gap-2">
+              {!isDocumentWithoutInvoice && (
               <Button
                 variant="outline"
                 onClick={async () => {
@@ -447,6 +455,7 @@ export function ProcessSelectionModal({
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Novo Processo
               </Button>
+              )}
               
               <Button
                 onClick={handleAttach}

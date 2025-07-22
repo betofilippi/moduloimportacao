@@ -1010,13 +1010,38 @@ console.log('depois de preparar',preparedData);
       const { userId = 'system' } = options;
       const timestamp = new Date().toISOString();
 
-      // The data should come directly as the contract object
-      const cambioData = data as any;
-
-      console.log('saveContratoCambio - Raw data received:', data);
-      console.log('saveContratoCambio - Data type:', typeof data);
-      console.log('saveContratoCambio - Data keys:', Object.keys(data || {}));
+      console.log('saveContratoCambio - Raw data received:', JSON.stringify(data, null, 2));
+      console.log('saveContratoCambio - Data structure:', {
+        hasSteps: !!(data.steps && data.steps.length > 0),
+        hasData: !!data.data,
+        directKeys: Object.keys(data || {})
+      });
       console.log('saveContratoCambio - fileHash:', options.fileHash);
+
+      // Extract contract data - handle multi-step OCR format
+      let cambioData;
+      
+      if (data.header?.data) {
+        console.log('saveContratoCambio - Using header.data format (from structuredResult)');
+        // Multi-step format with header.data structure
+        cambioData = data.header.data;
+      } else if (data.steps && data.steps.length > 0 && data.steps[0].result) {
+        console.log('saveContratoCambio - Using multi-step format');
+        // Multi-step format from OCR
+        cambioData = typeof data.steps[0].result === 'string' 
+          ? JSON.parse(data.steps[0].result) 
+          : data.steps[0].result;
+      } else if (data.data) {
+        console.log('saveContratoCambio - Using wrapped data format');
+        // Data wrapped in 'data' property
+        cambioData = data.data;
+      } else {
+        console.log('saveContratoCambio - Using direct data format');
+        // Direct data format
+        cambioData = data;
+      }
+      
+      console.log('saveContratoCambio - Extracted data:', JSON.stringify(cambioData, null, 2));
 
       // Prepare the contract data with all fields
       const contractData = {
@@ -2021,12 +2046,37 @@ console.log('depois de preparar',preparedData);
       
       const recordId = records.list[0].Id;
       
-      // The data should come directly as the contract object
-      const cambioData = data as any;
+      console.log('updateContratoCambio - Raw data received:', JSON.stringify(data, null, 2));
+      console.log('updateContratoCambio - Data structure:', {
+        hasSteps: !!(data.steps && data.steps.length > 0),
+        hasData: !!data.data,
+        directKeys: Object.keys(data || {})
+      });
 
-      console.log('updateContratoCambio - Raw data received:', data);
-      console.log('updateContratoCambio - Data type:', typeof data);
-      console.log('updateContratoCambio - Data keys:', Object.keys(data || {}));
+      // Extract contract data - handle multi-step OCR format
+      let cambioData;
+      
+      if (data.header?.data) {
+        console.log('updateContratoCambio - Using header.data format (from structuredResult)');
+        // Multi-step format with header.data structure
+        cambioData = data.header.data;
+      } else if (data.steps && data.steps.length > 0 && data.steps[0].result) {
+        console.log('updateContratoCambio - Using multi-step format');
+        // Multi-step format from OCR
+        cambioData = typeof data.steps[0].result === 'string' 
+          ? JSON.parse(data.steps[0].result) 
+          : data.steps[0].result;
+      } else if (data.data) {
+        console.log('updateContratoCambio - Using wrapped data format');
+        // Data wrapped in 'data' property
+        cambioData = data.data;
+      } else {
+        console.log('updateContratoCambio - Using direct data format');
+        // Direct data format
+        cambioData = data;
+      }
+      
+      console.log('updateContratoCambio - Extracted data:', JSON.stringify(cambioData, null, 2));
 
       // Prepare the contract data with all fields
       const contractData = {

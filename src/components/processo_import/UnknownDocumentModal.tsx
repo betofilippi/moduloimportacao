@@ -257,7 +257,7 @@ export function UnknownDocumentModal({
       
       // Start auto-process countdown if document was identified
       if (result.nextStep.shouldProcess) {
-        setAutoProcessCountdown(8);
+        setAutoProcessCountdown(10);
       }
     } catch (error) {
       console.error('Error identifying document:', error);
@@ -311,8 +311,29 @@ export function UnknownDocumentModal({
         invoiceNumber: identificationData.identification.document_number
       });
       
-      // Only search if we have an invoice number
-      if (identificationData.identification.document_number) {
+      // Check if this is a document type without invoice (BL or Contrato de Câmbio)
+      const isDocumentWithoutInvoice = documentType === 'bl' || documentType === 'contrato_cambio';
+      
+      if (isDocumentWithoutInvoice) {
+        // For BL and Contrato de Câmbio, get all active processes
+        console.log('📋 [DEBUG] Document without invoice detected, fetching all processes');
+        
+        const response = await fetch('/api/processo-importacao/list-all', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`✅ [DEBUG] Found ${result.processes.length} active processes`);
+          setFoundProcesses(result.processes || []);
+        } else {
+          setFoundProcesses([]);
+        }
+      } else if (identificationData.identification.document_number) {
+        // For other documents, search by invoice number
         const response = await fetch('/api/processo-importacao/search', {
           method: 'POST',
           headers: {
@@ -464,6 +485,16 @@ export function UnknownDocumentModal({
       }
 
       console.log('✅ OCR extraction completed, processing data...');
+      console.log('📊 [DEBUG] Extracted data structure:', {
+        hasSteps: !!extractedData?.steps,
+        stepsLength: extractedData?.steps?.length,
+        keys: Object.keys(extractedData || {}),
+        sampleData: extractedData?.steps?.[0] ? {
+          stepName: extractedData.steps[0].stepName,
+          hasResult: !!extractedData.steps[0].result,
+          resultType: typeof extractedData.steps[0].result
+        } : null
+      });
       setProcessingStatus('Processando dados extraídos...');
 
       // Step 2: Send extracted data to process endpoint
@@ -589,6 +620,8 @@ export function UnknownDocumentModal({
       'di': 'DI - Declaração de Importação',
       'numerario': 'Numerário',
       'nota_fiscal': 'Nota Fiscal',
+      'bl': 'BL - Bill of Lading',
+      'contrato_cambio': 'Contrato de Câmbio',
       'unknown': 'Desconhecido',
       'other': 'Outro',
       'PROFORMA_INVOICE': 'Proforma Invoice',
@@ -598,6 +631,8 @@ export function UnknownDocumentModal({
       'DI': 'DI - Declaração de Importação',
       'NUMERARIO': 'Numerário',
       'NOTA_FISCAL_TRADING': 'Nota Fiscal',
+      'BL': 'BL - Bill of Lading',
+      'CONTRATO_CAMBIO': 'Contrato de Câmbio',
       'DESCONHECIDO': 'Desconhecido'
     };
     return labels[type] || type;
@@ -948,6 +983,9 @@ export function UnknownDocumentModal({
                   </div>
                 )}
                 
+                {/* Only show create process button for documents WITH invoice */}
+                {identificationResult?.identification.mappedType !== 'bl' && 
+                 identificationResult?.identification.mappedType !== 'contrato_cambio' && (
                 <Button
                   onClick={async () => {
                     // Create simple process directly
@@ -1001,6 +1039,7 @@ export function UnknownDocumentModal({
                   <Plus className="h-4 w-4 mr-2" />
                   Criar Novo Processo
                 </Button>
+                )}
                 
                 {!isDocumentProcessed && (
                   <Button
@@ -1040,6 +1079,10 @@ export function UnknownDocumentModal({
         documentType={identificationResult.identification.mappedType}
         documentId={savedDocumentId || ''}
         fileHash={identificationResult.uploadData.fileHash}
+        isDocumentWithoutInvoice={
+          identificationResult.identification.mappedType === 'bl' || 
+          identificationResult.identification.mappedType === 'contrato_cambio'
+        }
         onProcessSelect={(processId) => {
           toast.success(`Documento conectado ao processo ${processId}`);
           onProcessSelect(processId);

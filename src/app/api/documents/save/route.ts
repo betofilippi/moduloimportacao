@@ -285,7 +285,9 @@ function getTableName(documentType: string): string {
     [DocumentType.SWIFT]: 'Swift',
     [DocumentType.DI]: 'DI',
     [DocumentType.NUMERARIO]: 'Numerario',
-    [DocumentType.NOTA_FISCAL]: 'NotaFiscal'
+    [DocumentType.NOTA_FISCAL]: 'NotaFiscal',
+    [DocumentType.BL]: 'BL',
+    [DocumentType.CONTRATO_CAMBIO]: 'ContratoCambio'
   };
   
   return tableMap[documentType] || 'Unknown';
