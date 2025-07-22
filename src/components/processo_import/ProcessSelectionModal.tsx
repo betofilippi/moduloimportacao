@@ -47,6 +47,7 @@ interface ProcessSelectionModalProps {
   documentType: string;
   documentId: string;
   fileHash: string;
+  invoiceNumber?: string; // Add invoice number as prop
   onProcessSelect: (processId: string) => void;
   onCreateNewProcess: () => void;
   onSkipAttachment?: () => void;
@@ -61,6 +62,7 @@ export function ProcessSelectionModal({
   documentType,
   documentId,
   fileHash,
+  invoiceNumber,
   onProcessSelect,
   onCreateNewProcess,
   onSkipAttachment,
@@ -402,20 +404,7 @@ export function ProcessSelectionModal({
               <Button
                 variant="outline"
                 onClick={async () => {
-                  // Try to extract invoice number from the saved document
-                  let invoiceNumber = null;
-                  
-                  try {
-                    // Get document data to extract invoice number
-                    const docResponse = await fetch(`/api/documents/${documentType}/${documentId}`);
-                    if (docResponse.ok) {
-                      const docData = await docResponse.json();
-                      invoiceNumber = docData.invoiceNumber || docData.invoice_number || docData.fatura;
-                    }
-                  } catch (error) {
-                    console.error('Error fetching document data:', error);
-                  }
-                  
+                  // Use the invoice number passed as prop
                   if (invoiceNumber) {
                     // Create simple process directly
                     try {

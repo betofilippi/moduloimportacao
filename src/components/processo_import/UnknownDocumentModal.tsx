@@ -1079,6 +1079,7 @@ export function UnknownDocumentModal({
         documentType={identificationResult.identification.mappedType}
         documentId={savedDocumentId || ''}
         fileHash={identificationResult.uploadData.fileHash}
+        invoiceNumber={identificationResult.identification.document_number || undefined}
         isDocumentWithoutInvoice={
           identificationResult.identification.mappedType === 'bl' || 
           identificationResult.identification.mappedType === 'contrato_cambio'
