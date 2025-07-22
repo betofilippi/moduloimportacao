@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSecureSession } from '@/lib/supabase-server';
 import { documentTypeMapping } from '@/services/documents/unknown/prompts';
-import { internalFetch, fileToBuffer } from '@/lib/internal-fetch';
+import { StorageService } from '@/lib/services/StorageService';
+import { DocumentCacheService } from '@/lib/services/DocumentCacheService';
+import { extractMultiPromptsPDF } from '@/services/ocr/pdfProcessor';
+import { getNocoDBService } from '@/lib/services/nocodb';
+import { NOCODB_TABLES } from '@/config/nocodb-tables';
+import crypto from 'crypto';
 
 /**
  * STEP 1: Upload and identify document type
@@ -37,69 +42,106 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Step 1: Upload file with type 'unknown'
+      // Step 1: Upload file with type 'unknown' directly
       console.log('📤 [IDENTIFY] Uploading file to storage...');
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      uploadFormData.append('documentType', 'unknown');
       
-      const uploadResponse = await internalFetch(
-        new URL('/api/ocr/upload', request.url).toString(),
-        {
-          method: 'POST',
-          body: uploadFormData
-        }
-      );
+      // Convert file to buffer
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      // Calculate file hash
+      const hash = crypto.createHash('sha256');
+      hash.update(buffer);
+      const fileHash = hash.digest('hex');
 
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        console.log('❌ [IDENTIFY] Upload failed:', errorData);
-        throw new Error(errorData.error || 'Failed to upload file');
+      // Check if file exists in cache
+      const cacheService = new DocumentCacheService();
+      const existingDoc = await cacheService.checkExistingDocument(fileHash);
+      
+      let uploadData;
+      if (existingDoc) {
+        console.log('✅ [IDENTIFY] File found in cache');
+        uploadData = {
+          storagePath: existingDoc.caminhoArquivo || '',
+          fileHash: existingDoc.hashArquivo,
+          fileUrl: existingDoc.urlArquivo || '',
+          fromCache: true
+        };
+      } else {
+        // Upload to storage
+        const { path: storagePath, publicUrl, fileHash: generatedHash } = await StorageService.uploadFile(
+          buffer,
+          file.name,
+          file.type,
+          session.user.id
+        );
+        
+        // Ensure hash consistency
+        if (generatedHash !== fileHash) {
+          console.warn('Hash mismatch - using generated hash');
+        }
+
+        // Save to database
+        const nocodb = getNocoDBService();
+        const uploadRecord = {
+          hashArquivo: fileHash,
+          nomeArquivo: safeName,
+          nomeOriginal: file.name,
+          tipoDocumento: 'unknown',
+          tamanhoArquivo: file.size,
+          caminhoArquivo: storagePath,
+          urlArquivo: publicUrl,
+          idUsuario: session.user.id,
+          emailUsuario: session.user.email,
+          dataUpload: new Date().toISOString(),
+          statusProcessamento: 'pendente'
+        };
+
+        try {
+          await nocodb.create(NOCODB_TABLES.DOCUMENT_UPLOADS, uploadRecord);
+          console.log('✅ [IDENTIFY] Document saved to database');
+        } catch (dbError) {
+          console.error('❌ [IDENTIFY] Database error:', dbError);
+          // Continue even if DB save fails
+        }
+
+        uploadData = {
+          storagePath,
+          fileHash,
+          fileUrl: publicUrl || '',
+          fromCache: false
+        };
       }
 
-      const uploadResult = await uploadResponse.json();
       console.log('✅ [IDENTIFY] Upload successful:', {
-        storagePath: uploadResult.data.storagePath,
-        fileHash: uploadResult.data.fileHash,
-        fromCache: uploadResult.fromCache || false
+        storagePath: uploadData.storagePath,
+        fileHash: uploadData.fileHash,
+        fromCache: uploadData.fromCache || false
       });
 
-      // Step 2: Extract with identification prompt
+      // Step 2: Extract with identification prompt directly
       console.log('🔍 [IDENTIFY] Running OCR with identification prompt...');
-      const extractData = {
-        storagePath: uploadResult.data.storagePath,
-        fileType: '.pdf',
-        documentType: 'unknown',
-        fileHash: uploadResult.data.fileHash
-      };
-
-      const extractResponse = await internalFetch(
-        new URL('/api/ocr/extract-claude-multi', request.url).toString(),
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(extractData)
-        }
+      
+      const extractResult = await extractMultiPromptsPDF(
+        uploadData.storagePath,
+        'unknown',
+        { fileHash: uploadData.fileHash }
       );
 
-      if (!extractResponse.ok) {
-        const errorData = await extractResponse.json();
-        console.log('❌ [IDENTIFY] OCR extraction failed:', errorData);
-        throw new Error(errorData.error || 'Failed to extract text');
+      if (!extractResult.success || extractResult.error) {
+        console.log('❌ [IDENTIFY] OCR extraction failed:', extractResult.error);
+        throw new Error(extractResult.error || 'Failed to extract text');
       }
 
-      const extractResult = await extractResponse.json();
       console.log('✅ [IDENTIFY] OCR extraction successful');
 
       // Parse identification result
       let identificationData;
-      if (extractResult.data?.extractedData) {
-        identificationData = extractResult.data.extractedData;
-      } else if (extractResult.data?.rawText) {
+      if (extractResult.extractedData) {
+        identificationData = extractResult.extractedData;
+      } else if (extractResult.rawText) {
         try {
-          identificationData = JSON.parse(extractResult.data.rawText);
+          identificationData = JSON.parse(extractResult.rawText);
         } catch (e) {
           console.error('❌ [IDENTIFY] Failed to parse identification result:', e);
           throw new Error('Invalid identification result');
@@ -120,10 +162,10 @@ export async function POST(request: NextRequest) {
       const response = {
         success: true,
         uploadData: {
-          storagePath: uploadResult.data.storagePath,
-          fileHash: uploadResult.data.fileHash,
+          storagePath: uploadData.storagePath,
+          fileHash: uploadData.fileHash,
           originalFileName: file.name,
-          fromCache: uploadResult.fromCache || false
+          fromCache: uploadData.fromCache || false
         },
         identification: {
           tipo: identificationData.tipo,
