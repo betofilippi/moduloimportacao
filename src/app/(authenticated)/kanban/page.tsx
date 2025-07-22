@@ -4,7 +4,7 @@ import * as React from "react"
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { KanbanBoard } from "@/components/processo_import/KanbanBoard"
-import { ProcessoImportacaoModal } from "@/components/processo_import/ProcessoImportacaoModal"
+import { ProcessoUnifiedModal } from "@/components/processo_import/ProcessoUnifiedModal"
 import { StageChangeModal } from "@/components/processo_import/StageChangeModal"
 import { ProcessoImportacao } from "@/types/processo-importacao"
 import { useNocoDB } from "@/hooks/useNocoDB"
@@ -280,7 +280,7 @@ export default function KanbanPage() {
       </Card>
 
       {/* Details Modal */}
-      <ProcessoImportacaoModal
+      <ProcessoUnifiedModal
         processo={selectedProcesso}
         open={isDetailsModalOpen}
         onOpenChange={setIsDetailsModalOpen}
@@ -290,9 +290,7 @@ export default function KanbanPage() {
         onDelete={async () => {
           toast.info('Funcionalidade de exclusão em desenvolvimento')
         }}
-        onDocumentClick={(doc) => {
-          console.log('Document clicked:', doc)
-        }}
+        onStageChange={handleStageChange}
       />
 
       {/* Stage Change Modal */}

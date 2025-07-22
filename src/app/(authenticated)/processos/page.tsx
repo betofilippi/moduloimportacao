@@ -9,8 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProcessoImportacaoList } from "@/components/processo_import/ProcessoImportacaoList"
 import { KanbanBoard } from "@/components/processo_import/KanbanBoard"
-import { ProcessoImportacaoModal } from "@/components/processo_import/ProcessoImportacaoModal"
-import { ProcessoDetailsEnhancedModal } from "@/components/processo_import/ProcessoDetailsEnhancedModal"
+import { ProcessoUnifiedModal } from "@/components/processo_import/ProcessoUnifiedModal"
 import { NovoProcessoModal } from "@/components/processo_import/NovoProcessoModal"
 import { UnknownDocumentModal } from "@/components/processo_import/UnknownDocumentModal"
 import { ProcessoImportacao, DocumentPipelineStatus } from "@/types/processo-importacao"
@@ -425,22 +424,17 @@ export default function ProcessosPage() {
         </CardContent>
       </Card>
 
-      {/* Enhanced Details Modal */}
-      <ProcessoDetailsEnhancedModal
-        isOpen={isEnhancedDetailsModalOpen}
-        onClose={() => setIsEnhancedDetailsModalOpen(false)}
-        processId={selectedProcessId || ''}
-        onDocumentConnect={handleConnectDocument}
-      />
-      
-      {/* Legacy Details Modal (for backward compatibility) */}
-      <ProcessoImportacaoModal
+      {/* Unified Process Details Modal */}
+      <ProcessoUnifiedModal
         processo={selectedProcesso}
-        open={isDetailsModalOpen}
-        onOpenChange={setIsDetailsModalOpen}
+        open={isDetailsModalOpen || isEnhancedDetailsModalOpen}
+        onOpenChange={(open) => {
+          setIsDetailsModalOpen(open);
+          setIsEnhancedDetailsModalOpen(open);
+        }}
         onEdit={handleEditProcesso}
         onDelete={handleDeleteProcesso}
-        onDocumentClick={handleDocumentClick}
+        onStageChange={handleStageChange}
       />
 
       {/* New Process Modal */}
