@@ -193,15 +193,19 @@ export default function ProcessosPage() {
       
       console.log('NocoDB data to create:', nocoData);
 
-      await create(nocoData)
+      const createdProcess = await create(nocoData)
       toast.success('Processo criado com sucesso!')
       
       // Refresh the list
       await fetchProcessos()
       setIsNewProcessModalOpen(false)
+      
+      // Return the created process ID
+      return createdProcess.Id || createdProcess.id
     } catch (error) {
       console.error('Error creating processo:', error)
       toast.error('Erro ao criar processo')
+      throw error
     }
   }
 

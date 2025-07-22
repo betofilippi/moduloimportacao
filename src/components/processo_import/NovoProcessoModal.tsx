@@ -26,7 +26,7 @@ import { NOCODB_TABLES } from '@/config/nocodb-tables';
 interface NovoProcessoModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (values: Record<string, any>) => void | Promise<void>;
+  onSubmit: (values: Record<string, any>) => void | Promise<void> | Promise<string>;
 }
 
 // Helper function to extract OCR data from various response structures
@@ -287,8 +287,12 @@ export function NovoProcessoModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             documentType: DocumentType.PROFORMA_INVOICE,
-            data: proformaDataToSave,
-            fileHash: fileHash
+            extractedData: proformaDataToSave,
+            metadata: {
+              fileHash: fileHash,
+              originalFileName: uploadedFile?.name || 'proforma_invoice.pdf',
+              storagePath: '' // Will be filled by backend if needed
+            }
           })
         });
         
@@ -335,7 +339,7 @@ export function NovoProcessoModal({
       
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = date.getFullYear();
-      const processNumber = `IMP-${invoiceNumber}-${month}-${year}`;
+      const processNumber = `IMP-${invoiceNumber}`;
       
       console.log('Process number generation:', {
         invoiceDate,
@@ -401,13 +405,13 @@ export function NovoProcessoModal({
 
       setProcessData(newProcessData);
 
-      // Save process to database
-      await onSubmit(newProcessData);
+      // Save process to database and get the created process ID
+      const createdProcessId = await onSubmit(newProcessData);
 
-      // Link the proforma invoice to the process
+      // Link the proforma invoice to the process using the ID, not the number
       try {
         const processDocService = getProcessDocumentService();
-        const linkResult = await processDocService.linkDocumentToProcess(processNumber, fileHash);
+        const linkResult = await processDocService.linkDocumentToProcess(createdProcessId, fileHash);
         
         if (linkResult.success) {
           console.log(`Proforma Invoice vinculada ao processo ${processNumber}`);
@@ -427,23 +431,6 @@ export function NovoProcessoModal({
         setTimeout(() => {
           onOpenChange(false);
           router.push('/processos');
-        }, 1500);
-      } else {
-        // If save failed, redirect to OCR page to allow manual save
-        const ocrState = {
-          processId: processNumber,
-          proformaHash: fileHash,
-          proformaData: JSON.stringify(processResult.data),
-          fromProcess: true
-        };
-
-        // Encode state in URL
-        const stateParam = btoa(JSON.stringify(ocrState));
-        
-        // Redirect to OCR page with state
-        setTimeout(() => {
-          onOpenChange(false);
-          router.push(`/ocr?documentType=proforma_invoice&from=new_process&state=${stateParam}&processId=${processNumber}`);
         }, 1500);
       }
 

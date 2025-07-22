@@ -3,10 +3,14 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { DocumentType, getAllDocumentTypeInfos, isFormatSupported } from '@/services/documents';
 import { DocumentTypeSelector } from './DocumentTypeSelector';
 import { toast } from 'sonner';
+import { getDocumentCacheService } from '@/lib/services/DocumentCacheService';
+import { getProcessDocumentService } from '@/lib/services/ProcessDocumentService';
+import { getNocoDBService } from '@/lib/services/nocodb';
+import { NOCODB_TABLES } from '@/config/nocodb-tables';
 
 interface DocumentUploadFormProps {
   onProcessComplete?: (results: any, documentType: DocumentType, isFromCache: boolean) => void;
@@ -15,6 +19,9 @@ interface DocumentUploadFormProps {
   className?: string;
   onClear?: () => void;
   hasProcessedData?: boolean;
+  processId?: string; // New prop to automatically link documents to a process
+  onDocumentSaved?: (documentId: string, documentType: DocumentType) => void; // Callback after successful save
+  autoSave?: boolean; // Whether to automatically save after OCR extraction
 }
 
 export function DocumentUploadForm({
@@ -23,12 +30,16 @@ export function DocumentUploadForm({
   defaultType,
   className = '',
   onClear,
-  hasProcessedData = false
+  hasProcessedData = false,
+  processId,
+  onDocumentSaved,
+  autoSave = false
 }: DocumentUploadFormProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState<DocumentType | ''>(defaultType || '');
   const [isProcessing, setIsProcessing] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Get available document types
   const allTypes = getAllDocumentTypeInfos();
@@ -126,6 +137,89 @@ export function DocumentUploadForm({
     }
   };
 
+  const saveDocument = async (extractedData: any, documentType: DocumentType, fileHash: string, originalFileName: string, storagePath: string) => {
+    try {
+      // Call save endpoint
+      const saveResponse = await fetch('/api/documents/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          documentType: documentType,
+          extractedData: extractedData,
+          metadata: {
+            fileHash: fileHash,
+            originalFileName: originalFileName,
+            storagePath: storagePath
+          }
+        })
+      });
+
+      const saveResult = await saveResponse.json();
+
+      if (!saveResponse.ok || !saveResult.success) {
+        throw new Error(saveResult.error || 'Falha ao salvar');
+      }
+
+      toast.success(`Documento ${documentType} salvo com sucesso!`);
+      
+      // Update upload status
+      if (fileHash && saveResult.documentId) {
+        try {
+          const nocodb = getNocoDBService();
+          // Find upload record by hash
+          const uploadRecords = await nocodb.find(NOCODB_TABLES.DOCUMENT_UPLOADS, {
+            where: `(hashArquivo,eq,${fileHash})`,
+            limit: 1
+          });
+          
+          if (uploadRecords.list && uploadRecords.list.length > 0) {
+            const uploadRecord = uploadRecords.list[0];
+            const cacheService = getDocumentCacheService();
+            await cacheService.updateUploadStatus(
+              uploadRecord.Id, 
+              saveResult.documentId, 
+              'completo'
+            );
+            console.log(`✅ Status atualizado para 'completo' - Upload ID: ${uploadRecord.Id}`);
+          }
+        } catch (error) {
+          console.error('Error updating upload status:', error);
+          // Don't fail the operation
+        }
+      }
+
+      // If processId is provided, link document to process
+      if (processId && saveResult.documentId) {
+        const processDocumentService = getProcessDocumentService();
+        const linkResult = await processDocumentService.linkDocumentWithMetadata(
+          processId,
+          fileHash,
+          documentType,
+          saveResult.documentId
+        );
+
+        if (linkResult.success) {
+          toast.success(`Documento vinculado ao processo ${processId}`);
+        } else {
+          toast.error('Erro ao vincular documento ao processo');
+        }
+      }
+
+      // Call callback if provided
+      if (onDocumentSaved) {
+        onDocumentSaved(saveResult.documentId, documentType);
+      }
+
+      return saveResult.documentId;
+    } catch (error) {
+      console.error('Error saving document:', error);
+      toast.error(`Erro ao salvar documento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      throw error;
+    }
+  };
+
   const handleProcess = async () => {
     if (!selectedFile || !documentType) {
       toast.error('Selecione um arquivo e tipo de documento');
@@ -172,6 +266,29 @@ export function DocumentUploadForm({
         };
 
         toast.success(uploadResult.data.message || 'Documento já processado! Dados recuperados do cache.');
+        
+        // If processId is provided and document is not already saved, link it
+        if (processId && !uploadResult.data.isAlreadySaved) {
+          setIsSaving(true);
+          try {
+            const processDocumentService = getProcessDocumentService();
+            const linkResult = await processDocumentService.linkDocumentWithMetadata(
+              processId,
+              uploadResult.data.fileHash,
+              documentType,
+              uploadResult.data.idDocumento || ''
+            );
+
+            if (linkResult.success) {
+              toast.success(`Documento do cache vinculado ao processo ${processId}`);
+            }
+          } catch (error) {
+            console.error('Error linking cached document to process:', error);
+          } finally {
+            setIsSaving(false);
+          }
+        }
+        
         onProcessComplete?.(result, documentType, uploadResult.data.isAlreadySaved || false);
         return; // Exit without processing with Claude
       }
@@ -222,6 +339,29 @@ export function DocumentUploadForm({
       };
 
       toast.success('Documento processado com sucesso!');
+      
+      // Auto-save if enabled or processId is provided
+      if (autoSave || processId) {
+        setIsSaving(true);
+        try {
+          const documentId = await saveDocument(
+            processResult.data,
+            documentType,
+            uploadResult.data.fileHash,
+            selectedFile.name,
+            storagePath
+          );
+          
+          // Update result to indicate it's now saved
+          result.isAlreadySaved = true;
+        } catch (error) {
+          console.error('Error in auto-save:', error);
+          // Continue even if save fails - user can manually save later
+        } finally {
+          setIsSaving(false);
+        }
+      }
+      
       onProcessComplete?.(result, documentType, false);
 
     } catch (error) {
@@ -249,6 +389,23 @@ export function DocumentUploadForm({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Process Link Info */}
+        {processId && (
+          <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-500 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-blue-800 dark:text-blue-200">
+                  Vinculação automática ao processo {processId}
+                </p>
+                <p className="text-blue-700 dark:text-blue-300 mt-1">
+                  O documento será automaticamente vinculado ao processo após o processamento.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Warning if there are processed data */}
         {hasProcessedData && !selectedFile && (
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
@@ -346,17 +503,29 @@ export function DocumentUploadForm({
         <div className="flex gap-3">
           <Button 
             onClick={handleProcess} 
-            disabled={!canProcess}
+            disabled={!canProcess || isSaving}
             className="flex-1"
           >
-            {isProcessing ? 'Processando...' : 'Processar Documento'}
+            {isProcessing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processando...
+              </>
+            ) : isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              'Processar Documento'
+            )}
           </Button>
           
           {selectedFile && (
             <Button 
               variant="outline" 
               onClick={handleReset}
-              disabled={isProcessing}
+              disabled={isProcessing || isSaving}
             >
               {hasProcessedData ? 'Limpar Tudo' : 'Limpar'}
             </Button>

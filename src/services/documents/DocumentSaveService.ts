@@ -1021,8 +1021,12 @@ console.log('depois de preparar',preparedData);
       // Extract contract data - handle multi-step OCR format
       let cambioData;
       
-      if (data.header?.data) {
-        console.log('saveContratoCambio - Using header.data format (from structuredResult)');
+      // Check for structuredResult format first (most common from OCR)
+      if (data.structuredResult?.header?.data) {
+        console.log('saveContratoCambio - Using structuredResult.header.data format');
+        cambioData = data.structuredResult.header.data;
+      } else if (data.header?.data) {
+        console.log('saveContratoCambio - Using header.data format');
         // Multi-step format with header.data structure
         cambioData = data.header.data;
       } else if (data.steps && data.steps.length > 0 && data.steps[0].result) {
@@ -1031,6 +1035,12 @@ console.log('depois de preparar',preparedData);
         cambioData = typeof data.steps[0].result === 'string' 
           ? JSON.parse(data.steps[0].result) 
           : data.steps[0].result;
+      } else if (data.multiPrompt?.steps && data.multiPrompt.steps.length > 0 && data.multiPrompt.steps[0].result) {
+        console.log('saveContratoCambio - Using multiPrompt.steps format');
+        // Multi-prompt format from OCR
+        cambioData = typeof data.multiPrompt.steps[0].result === 'string' 
+          ? JSON.parse(data.multiPrompt.steps[0].result) 
+          : data.multiPrompt.steps[0].result;
       } else if (data.data) {
         console.log('saveContratoCambio - Using wrapped data format');
         // Data wrapped in 'data' property

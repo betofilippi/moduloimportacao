@@ -76,12 +76,6 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
           requiredRole: ['admin', 'user'],
         },
         {
-          title: "Importações (Em Desenvolvimento)",
-          href: "/processos",
-          icon: Upload,
-          requiredRole: ['admin', 'user'],
-        },
-        {
           title: "Kanban de Processos",
           href: "/kanban",
           icon: Layers,
@@ -98,13 +92,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
           href: "/processos/declaracoes",
           icon: FileUp,
           requiredRole: ['admin', 'user'],
-        },*/
+        },
         {
           title: "OCR - Extração",
           href: "/ocr",
           icon: ScanLine,
           requiredRole: ['admin', 'user'],
-        },
+        },*/
       ],
     },
   ]

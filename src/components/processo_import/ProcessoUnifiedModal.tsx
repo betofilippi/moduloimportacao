@@ -303,8 +303,15 @@ export function ProcessoUnifiedModal({
                 <CardContent className="pt-6">
                   <DocumentUploadForm 
                     processId={processo.id}
-                    onSuccess={handleDocumentUpload}
-                    onCancel={() => setShowUploadForm(false)}
+                    autoSave={true}
+                    onDocumentSaved={(documentId, documentType) => {
+                      console.log(`Document ${documentId} of type ${documentType} saved and linked to process ${processo.id}`);
+                      loadDocuments(); // Refresh documents list
+                    }}
+                    onProcessComplete={(results, documentType, isFromCache) => {
+                      handleDocumentUpload();
+                      setShowUploadForm(false);
+                    }}
                   />
                 </CardContent>
               </Card>
