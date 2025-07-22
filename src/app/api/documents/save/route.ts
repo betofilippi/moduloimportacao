@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSecureSession } from '@/lib/supabase-server';
 import { DocumentSaveService } from '@/services/documents/DocumentSaveService';
 import { DocumentType } from '@/services/documents/base/types';
+import { getProcessDocumentService } from '@/lib/services/ProcessDocumentService';
 
 /**
  * STEP 3: Save extracted document data to database
@@ -21,11 +22,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { documentType, extractedData, metadata } = body;
+    const { documentType, extractedData, metadata, processId } = body;
 
     console.log('📋 [SAVE] Save request received:', {
       documentType,
       hasExtractedData: !!extractedData,
+      processId,
       metadata: {
         fileHash: metadata?.fileHash,
         originalFileName: metadata?.originalFileName,
@@ -167,6 +169,8 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('✅ [SAVE] Document saved successfully:', {
+        processId: processId,
+        saveResult: saveResult,
         documentId: saveResult.documentId,
         documentType,
         tableUsed: getTableName(documentType)
@@ -177,6 +181,37 @@ export async function POST(request: NextRequest) {
         const savedFields = Object.keys(saveResult.details.saved);
         console.log('📊 [SAVE] Saved fields:', savedFields.slice(0, 10), 
           savedFields.length > 10 ? `... and ${savedFields.length - 10} more` : '');
+      }
+
+      // 🔗 Link document to process if processId is provided
+      if (processId && metadata?.fileHash) {
+        try {
+          console.log('🔗 [SAVE] Linking document to process:', {
+            processId,
+            fileHash: metadata.fileHash,
+            documentType,
+            documentId: saveResult.documentId
+          });
+          
+          const processDocService = getProcessDocumentService();
+          const linkResult = await processDocService.linkDocumentWithMetadata(
+            processId,
+            metadata.fileHash,
+            documentType,
+            saveResult.documentId
+          );
+          
+          if (linkResult.success) {
+            console.log('✅ [SAVE] Document successfully linked to process', processId);
+          } else {
+            console.error('❌ [SAVE] Failed to link document to process:', linkResult.error);
+          }
+        } catch (linkError) {
+          console.error('❌ [SAVE] Error linking document to process:', linkError);
+          // Don't fail the save operation due to linking error
+        }
+      } else if (processId) {
+        console.log('⚠️ [SAVE] ProcessId provided but missing fileHash or documentId for linking');
       }
 
       // Update document type in DOCUMENT_UPLOADS table if fileHash is provided

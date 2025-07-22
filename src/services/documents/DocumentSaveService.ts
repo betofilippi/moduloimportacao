@@ -255,7 +255,8 @@ export class DocumentSaveService {
       console.log(data)
       
       // Extract header data - handle multi-step structure
-      const extractedHeader = this.extractData(data.header, {});
+      const headerSource = data.header || data.structuredResult?.header || {};
+      const extractedHeader = this.extractData(headerSource, {});
       
       // Prepare header data
       const headerData = {
@@ -289,7 +290,8 @@ export class DocumentSaveService {
       const numeroDI = savedHeader.numero_DI || savedHeader.numero_di;
 
       // Extract and save items
-      const itemsArray = this.extractData(data.items, []);
+      const itemsSource = data.items || data.structuredResult?.items || [];
+      const itemsArray = this.extractData(itemsSource, []);
       const savedItems = [];
       if (Array.isArray(itemsArray) && itemsArray.length > 0) {
         for (const item of itemsArray) {
@@ -371,7 +373,8 @@ export class DocumentSaveService {
       console.log("INICIADO SAVE COMMERCIAL", data);
       
       // Extract header data - handle multi-step structure
-      const headerData = this.extractData(data.header, data);
+      const headerSource = data.header || data.structuredResult?.header || {};
+      const headerData = this.extractData(headerSource, data);
       console.log('DADOS HEADER EXTRAÍDOS:', headerData);
       // Transform to NocoDB format
       const transformedHeader = transformToNocoDBFormat(
@@ -395,7 +398,8 @@ export class DocumentSaveService {
       const invoiceNumber = savedHeader.invoiceNumber || savedHeader.invoice_number;
 
       // Extract items - handle multi-step structure
-      const itemsArray = this.extractData(data.items, []);
+      const itemsSource = data.items || data.structuredResult?.items || [];
+      const itemsArray = this.extractData(itemsSource, []);
       console.log(`ITEMS EXTRAÍDOS: ${Array.isArray(itemsArray) ? itemsArray.length : 0} items`);
 
       // Save items
@@ -450,7 +454,8 @@ export class DocumentSaveService {
       const timestamp = new Date().toISOString();
 
       // Extract header data - handle multi-step structure
-      const extractedHeader = this.extractData(data.header, {});
+      const headerSource = data.header || data.structuredResult?.header || {};
+      const extractedHeader = this.extractData(headerSource, {});
       
       // Prepare header data using the correct field mappings
       const headerData = {
@@ -594,7 +599,8 @@ export class DocumentSaveService {
       console.log('SaveProformaInvoice - Input data:', JSON.stringify(data, null, 2));
       
       // Extract header data - handle multi-step structure
-      const extractedHeader = this.extractData(data.header, {});
+      const headerSource = data.header || data.structuredResult?.header || {};
+      const extractedHeader = this.extractData(headerSource, {});
       console.log('SaveProformaInvoice - Extracted header:', extractedHeader);
 
       // Prepare header data with proper field mapping
@@ -638,7 +644,8 @@ export class DocumentSaveService {
 
       // Extract and save items (from containers in proforma invoice)
       const savedItems = [];
-      const itemsArray = this.extractData(data.containers || data.items, []);
+      const itemsSource = data.containers || data.items || data.structuredResult?.items || [];
+      const itemsArray = this.extractData(itemsSource, []);
       if (itemsArray.length > 0) {
         for (let i = 0; i < itemsArray.length; i++) {
           const item = itemsArray[i];
@@ -1779,7 +1786,8 @@ console.log('depois de preparar',preparedData);
       console.log('🔵 Saving Nota Fiscal - data:', data);
 
       // Extract header data - handle multi-step structure
-      const extractedHeader = this.extractData(data.header, {});
+      const headerSource = data.header || data.structuredResult?.header || {};
+      const extractedHeader = this.extractData(headerSource, {});
       
       // Prepare header data
       const headerData = {
@@ -1812,7 +1820,8 @@ console.log('depois de preparar',preparedData);
       const chaveAcesso = savedHeader.chaveAcesso || extractedHeader.chave_acesso || '';
 
       // Extract and save items
-      const itemsArray = this.extractData(data.items, []);
+      const itemsSource = data.items || data.structuredResult?.items || [];
+      const itemsArray = this.extractData(itemsSource, []);
       const savedItems = [];
       if (Array.isArray(itemsArray) && itemsArray.length > 0) {
         for (const item of itemsArray) {

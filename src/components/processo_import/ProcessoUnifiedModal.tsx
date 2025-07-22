@@ -81,6 +81,8 @@ export function ProcessoUnifiedModal({
   const [violations, setViolations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [businessRules, setBusinessRules] = useState<any>(null);
+  const [processData, setProcessData] = useState<any>(null);
 
   useEffect(() => {
     if (open && processo) {
@@ -93,29 +95,47 @@ export function ProcessoUnifiedModal({
     
     setLoading(true);
     try {
-      // Load documents
-      const docsResponse = await fetch(`/api/processo-importacao/documents?processId=${processo.id}`);
-      if (docsResponse.ok) {
-        const docsData = await docsResponse.json();
-        setDocuments(docsData.documents || []);
-      }
-
-      // Load stage logs (last 5)
-      const logsResponse = await fetch(`/api/processo-importacao/audit-logs?processId=${processo.id}&limit=5`);
-      if (logsResponse.ok) {
-        const logsData = await logsResponse.json();
-        setStageLogs(logsData.logs || []);
-      }
-
-      // Check violations
+      // Load all data from check endpoint
       const checkResponse = await fetch(`/api/processo-importacao/check`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ processId: processo.id })
       });
+      
       if (checkResponse.ok) {
         const checkData = await checkResponse.json();
-        setViolations(checkData.violations || []);
+        
+        // Update process data
+        setProcessData(checkData.process);
+        
+        // Update documents with header data
+        const documentsWithHeaders = checkData.documents.details.map((doc: any) => ({
+          id: doc.id,
+          hashArquivo: doc.hashArquivo,
+          nomeArquivo: doc.nomeArquivoOriginal || doc.tipoDocumento,
+          tipoDocumento: doc.tipoDocumento,
+          dataUpload: doc.dataUpload,
+          statusProcessamento: doc.statusProcessamento,
+          idDocumento: doc.idDocumento,
+          header: doc.header // Include header data
+        }));
+        setDocuments(documentsWithHeaders);
+        
+        // Update stage logs
+        if (checkData.stageLogs) {
+          setStageLogs(checkData.stageLogs.map((log: any) => ({
+            id: log.id,
+            ultima_etapa: log.ultimaEtapa,
+            nova_etapa: log.novaEtapa,
+            responsavel: log.responsavel,
+            descricao_regra: log.descricaoRegra,
+            created_at: log.dataMovimentacao || log.createdAt
+          })));
+        }
+        
+        // Update violations and business rules
+        setViolations(checkData.businessRules?.violations || []);
+        setBusinessRules(checkData.businessRules);
       }
     } catch (error) {
       console.error('Error loading process data:', error);
@@ -142,13 +162,32 @@ export function ProcessoUnifiedModal({
   };
 
   const handleDocumentDelete = async (doc: ProcessDocument) => {
-    if (!confirm('Deseja remover este documento?')) return;
+    if (!confirm('Deseja remover este documento do processo?')) return;
     
     try {
-      // Delete logic here
-      toast.success('Documento removido');
-      loadProcessData();
+      const response = await fetch('/api/processo-importacao/documents/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentHash: doc.hashArquivo,
+          processId: processo?.id
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        toast.success(
+          result.isOrphan 
+            ? 'Documento removido e marcado como excluído' 
+            : 'Documento removido do processo'
+        );
+        loadProcessData();
+      } else {
+        throw new Error(result.error || 'Falha ao remover documento');
+      }
     } catch (error) {
+      console.error('Error deleting document:', error);
       toast.error('Erro ao remover documento');
     }
   };
@@ -228,9 +267,9 @@ export function ProcessoUnifiedModal({
             </TabsTrigger>
             <TabsTrigger value="violations" className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
-              Validações {criticalViolations.length > 0 && (
+              Validações {violations.filter(v => v.severity === 'error').length > 0 && (
                 <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 text-xs">
-                  {criticalViolations.length}
+                  {violations.filter(v => v.severity === 'error').length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -423,10 +462,61 @@ export function ProcessoUnifiedModal({
                 <CardContent className="text-center py-8">
                   <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
                   <p className="text-muted-foreground">Nenhuma inconsistência encontrada</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Todas as regras de negócio estão sendo atendidas
+                  </p>
                 </CardContent>
               </Card>
             ) : (
-              <BusinessRuleAlerts violations={violations} />
+              <>
+                <BusinessRuleAlerts violations={violations} />
+                
+                {/* Required Documents Info */}
+                {businessRules?.requiredDocuments && businessRules.requiredDocuments.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Documentos Necessários</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {businessRules.requiredDocuments.map((doc: any) => (
+                          <div key={doc.type} className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm">{doc.name}</span>
+                            {doc.isRequired && (
+                              <Badge variant="destructive" className="text-xs">Obrigatório</Badge>
+                            )}
+                            <Badge variant="secondary" className="text-xs">{doc.stage}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+                
+                {/* Stage Transition Info */}
+                {businessRules?.canTransitionTo && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Transições Permitidas</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {businessRules.canTransitionTo.map((transition: any) => (
+                          <div key={transition.stage} className="flex items-center justify-between">
+                            <span className="text-sm">{transition.title}</span>
+                            {transition.allowed ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             )}
           </TabsContent>
         </Tabs>

@@ -256,6 +256,31 @@ export async function POST(request: NextRequest) {
       description: 'Etapa não definida'
     };
 
+    // 11. Get stage movement logs
+    let stageLogs = [];
+    try {
+      const logsResult = await nocodb.find(NOCODB_TABLES.LOGS.ETAPA_AUDIT, {
+        where: `(numero_processo,eq,${processId})`,
+        sort: ['-CreatedAt'],
+        limit: 10 // Últimas 10 movimentações
+      });
+      
+      if (logsResult.list && logsResult.list.length > 0) {
+        stageLogs = logsResult.list.map(log => ({
+          id: log.Id,
+          dataMovimentacao: log.CreatedAt,
+          ultimaEtapa: log.ultima_etapa,
+          novaEtapa: log.nova_etapa,
+          descricaoRegra: log.descricao_regra,
+          responsavel: log.responsavel,
+        }));
+      }
+      console.log(`📊 [CHECK PROCESS] Found ${stageLogs.length} stage movement logs`);
+    } catch (error) {
+      console.error('⚠️ [CHECK PROCESS] Error fetching stage logs:', error);
+      // Continue without logs if error occurs
+    }
+
     // Prepare response
     const response = {
       success: true,
@@ -312,7 +337,8 @@ export async function POST(request: NextRequest) {
         hasAllRequiredDocs: missingDocuments.length === 0,
         violationsCount: violations.length,
         hasViolations: violations.length > 0
-      }
+      },
+      stageLogs: stageLogs
     };
 
     return NextResponse.json(response);

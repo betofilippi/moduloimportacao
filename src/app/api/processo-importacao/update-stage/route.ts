@@ -152,14 +152,14 @@ export async function POST(request: NextRequest) {
     );
 
     // Create audit log (RN-09)
-    const logData = transformToNocoDBFormat({
-      hash_arquivo_origem: `process_${processId}_${Date.now()}`, // Generate unique hash for this log entry
-      numero_processo: currentProcess.numero_processo,
+    const logData = {
+      numero_processo: currentProcess.Id,
       responsavel: session.user.email || session.user.id,
       ultima_etapa: oldStage,
       nova_etapa: newStage,
       descricao_regra: reason // The reason/justification from modal
-    }, TABLE_FIELD_MAPPINGS.LOGS_IMPORTACAO);
+      // CreatedAt será preenchido automaticamente pelo NocoDB
+    };
 
     console.log('📝 [UPDATE-STAGE] Creating audit log with data:', logData);
     

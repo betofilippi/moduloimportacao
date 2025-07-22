@@ -217,14 +217,39 @@ export default function ProcessosPage() {
 
   // Handle processo delete
   const handleDeleteProcesso = async (processo: ProcessoImportacao) => {
+    if (!confirm(`Tem certeza que deseja excluir o processo ${processo.numeroProcesso}?\n\nTodos os documentos serão desvinculados e o processo será permanentemente removido.`)) {
+      return;
+    }
+    
     try {
-      await remove(processo.id)
-      toast.success('Processo excluído com sucesso!')
-      await fetchProcessos()
-      setIsDetailsModalOpen(false)
+      const response = await fetch('/api/processo-importacao/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ processId: processo.id })
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        toast.success(
+          `Processo ${processo.numeroProcesso} excluído com sucesso!`, 
+          {
+            description: result.details.documentosDesvinculados > 0 
+              ? `${result.details.documentosDesvinculados} documento(s) foram desvinculados` 
+              : undefined
+          }
+        );
+        await fetchProcessos();
+        setIsDetailsModalOpen(false);
+        setIsEnhancedDetailsModalOpen(false);
+      } else {
+        throw new Error(result.error || 'Erro ao excluir processo');
+      }
     } catch (error) {
-      console.error('Error deleting processo:', error)
-      toast.error('Erro ao excluir processo')
+      console.error('Error deleting processo:', error);
+      toast.error('Erro ao excluir processo', {
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
     }
   }
 

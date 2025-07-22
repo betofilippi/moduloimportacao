@@ -137,7 +137,8 @@ export function DocumentUploadForm({
     }
   };
 
-  const saveDocument = async (extractedData: any, documentType: DocumentType, fileHash: string, originalFileName: string, storagePath: string) => {
+  const saveDocument = async (extractedData: any, documentType: DocumentType, fileHash: string, originalFileName: string, storagePath: string, processId?: string) => {
+    console.log('🔗 [SAVE] saveDocument called with processId:', processId);
     try {
       // Call save endpoint
       const saveResponse = await fetch('/api/documents/save', {
@@ -148,6 +149,7 @@ export function DocumentUploadForm({
         body: JSON.stringify({
           documentType: documentType,
           extractedData: extractedData,
+          processId: processId, // Pass processId to enable automatic linking
           metadata: {
             fileHash: fileHash,
             originalFileName: originalFileName,
@@ -190,21 +192,9 @@ export function DocumentUploadForm({
         }
       }
 
-      // If processId is provided, link document to process
+      // Document linking is now handled automatically in /api/documents/save
       if (processId && saveResult.documentId) {
-        const processDocumentService = getProcessDocumentService();
-        const linkResult = await processDocumentService.linkDocumentWithMetadata(
-          processId,
-          fileHash,
-          documentType,
-          saveResult.documentId
-        );
-
-        if (linkResult.success) {
-          toast.success(`Documento vinculado ao processo ${processId}`);
-        } else {
-          toast.error('Erro ao vincular documento ao processo');
-        }
+        toast.success(`Documento vinculado ao processo ${processId}`);
       }
 
       // Call callback if provided
@@ -349,7 +339,8 @@ export function DocumentUploadForm({
             documentType,
             uploadResult.data.fileHash,
             selectedFile.name,
-            storagePath
+            storagePath,
+            processId
           );
           
           // Update result to indicate it's now saved
