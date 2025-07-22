@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSecureSession } from '@/lib/supabase-server';
 import { getNocoDBService } from '@/lib/services/nocodb';
-import { NOCODB_TABLES } from '@/config/nocodb-tables';
+import { NOCODB_TABLES, KANBAN_CONFIG } from '@/config/nocodb-tables';
+import { ProcessBusinessRules } from '@/lib/services/ProcessBusinessRules';
 
 /**
  * Check import process details including related documents
@@ -213,8 +214,47 @@ export async function POST(request: NextRequest) {
       docType => !documentTypes.includes(docType)
     );
 
-    // 6. Calculate process stage based on documents
-    const processStage = calculateProcessStage(documentTypes);
+    // 6. Get current stage from process or calculate based on documents
+    const currentStage = processData.etapa || ProcessBusinessRules.getSuggestedStage(
+      documentDetails.map(doc => ({
+        tipo_documento: doc.tipoDocumento,
+        hash_arquivo: doc.hashArquivo,
+        data_anexo: doc.dataUpload,
+        nome_arquivo: doc.nomeArquivoOriginal
+      }))
+    );
+
+    // 7. Check business rule violations
+    const violations = ProcessBusinessRules.getAllViolations(
+      currentStage,
+      documentDetails.map(doc => ({
+        tipo_documento: doc.tipoDocumento,
+        hash_arquivo: doc.hashArquivo,
+        data_anexo: doc.dataUpload,
+        nome_arquivo: doc.nomeArquivoOriginal
+      }))
+    );
+
+    // 8. Get suggested stage based on documents
+    const suggestedStage = ProcessBusinessRules.getSuggestedStage(
+      documentDetails.map(doc => ({
+        tipo_documento: doc.tipoDocumento,
+        hash_arquivo: doc.hashArquivo,
+        data_anexo: doc.dataUpload,
+        nome_arquivo: doc.nomeArquivoOriginal
+      }))
+    );
+
+    // 9. Get required documents for current stage
+    const requiredDocuments = ProcessBusinessRules.getStageRequiredDocuments(currentStage);
+
+    // 10. Get stage information
+    const stageInfo = KANBAN_CONFIG.STAGES.find(s => s.id === currentStage) || {
+      id: currentStage,
+      title: currentStage,
+      color: 'bg-gray-500',
+      description: 'Etapa não definida'
+    };
 
     // Prepare response
     const response = {
@@ -228,7 +268,8 @@ export async function POST(request: NextRequest) {
         status: processData.status,
         data_inicio: processData.data_inicio,
         invoiceNumber: processData.invoiceNumber,
-        stage: processStage
+        etapa: currentStage,
+        stageInfo: stageInfo
       },
       documents: {
         total: documentDetails.length,
@@ -246,9 +287,31 @@ export async function POST(request: NextRequest) {
           header: documentHeaders[doc.hashArquivo] || null
         }))
       },
+      businessRules: {
+        violations: violations,
+        suggestedStage: suggestedStage,
+        requiredDocuments: requiredDocuments,
+        canTransitionTo: KANBAN_CONFIG.STAGES.map(stage => ({
+          stage: stage.id,
+          title: stage.title,
+          allowed: ProcessBusinessRules.checkStageTransition(
+            currentStage,
+            stage.id,
+            documentDetails.map(doc => ({
+              tipo_documento: doc.tipoDocumento,
+              hash_arquivo: doc.hashArquivo,
+              data_anexo: doc.dataUpload,
+              nome_arquivo: doc.nomeArquivoOriginal
+            })),
+            false
+          ).allowed
+        }))
+      },
       alerts: {
         missingDocumentsCount: missingDocuments.length,
-        hasAllRequiredDocs: missingDocuments.length === 0
+        hasAllRequiredDocs: missingDocuments.length === 0,
+        violationsCount: violations.length,
+        hasViolations: violations.length > 0
       }
     };
 

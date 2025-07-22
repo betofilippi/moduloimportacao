@@ -99,12 +99,12 @@ export function KanbanBoard({
 
   if (loading) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-6 overflow-x-auto pb-4">
         {KANBAN_CONFIG.STAGES.map((stage) => (
-          <div key={stage.id} className="min-w-[350px]">
+          <div key={stage.id} className="min-w-[420px] w-[420px]">
             <div className="h-12 bg-zinc-800 rounded-t-lg animate-pulse" />
-            <div className="bg-zinc-900 min-h-[400px] rounded-b-lg p-2">
-              <div className="space-y-2">
+            <div className="bg-zinc-900 min-h-[500px] rounded-b-lg p-3">
+              <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-32 bg-zinc-800 rounded animate-pulse" />
                 ))}
@@ -118,24 +118,24 @@ export function KanbanBoard({
 
   return (
     <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-6 overflow-x-auto pb-4">
         {KANBAN_CONFIG.STAGES.map((stage) => {
           const stageProcesses = processesByStage[stage.id] || [];
           
           return (
-            <div key={stage.id} className="min-w-[350px] flex flex-col">
+            <div key={stage.id} className="min-w-[420px] w-[420px] flex flex-col">
               {/* Column Header */}
               <div className={cn(
-                "rounded-t-lg p-3 text-white",
+                "rounded-t-lg p-4 text-white",
                 stage.color
               )}>
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">{stage.title}</h3>
+                  <h3 className="font-semibold text-lg">{stage.title}</h3>
                   <Badge variant="secondary" className="bg-white/20 text-white">
                     {stageProcesses.length}
                   </Badge>
                 </div>
-                <p className="text-xs text-white/80 mt-1">
+                <p className="text-sm text-white/80 mt-1">
                   {stage.description}
                 </p>
               </div>
@@ -147,11 +147,11 @@ export function KanbanBoard({
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={cn(
-                      "flex-1 bg-zinc-900/50 rounded-b-lg p-2 min-h-[400px] max-h-[calc(100vh-300px)] overflow-y-auto",
+                      "flex-1 bg-zinc-900/50 rounded-b-lg p-3 min-h-[500px]",
                       snapshot.isDraggingOver && "bg-zinc-800/50 ring-2 ring-blue-500/50"
                     )}
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {stageProcesses.map((processo, index) => (
                         <Draggable
                           key={processo.id}

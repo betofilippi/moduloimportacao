@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { KanbanBoard } from "@/components/processo_import/KanbanBoard"
 import { ProcessoImportacaoModal } from "@/components/processo_import/ProcessoImportacaoModal"
+import { StageChangeModal } from "@/components/processo_import/StageChangeModal"
 import { ProcessoImportacao } from "@/types/processo-importacao"
 import { useNocoDB } from "@/hooks/useNocoDB"
 import { NOCODB_TABLES, KANBAN_CONFIG } from "@/config/nocodb-tables"
@@ -17,6 +18,19 @@ export default function KanbanPage() {
   const [selectedProcesso, setSelectedProcesso] = useState<ProcessoImportacao | null>(null)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [stageChangeModal, setStageChangeModal] = useState<{
+    isOpen: boolean
+    processId: string
+    currentStage: string
+    processNumber: string
+    targetStage?: string
+  }>({
+    isOpen: false,
+    processId: '',
+    currentStage: '',
+    processNumber: '',
+    targetStage: undefined
+  })
 
   const { find, update } = useNocoDB(NOCODB_TABLES.PROCESSOS_IMPORTACAO)
 
@@ -38,6 +52,7 @@ export default function KanbanPage() {
     return {
       id: String(record.Id || record.id),
       numeroProcesso: record.numero_processo || '',
+      invoiceNumber: record.invoiceNumber || '',
       descricao: record.descricao || '',
       empresa: record.empresa || '',
       dataInicio: record.data_inicio || '',
@@ -76,32 +91,135 @@ export default function KanbanPage() {
     fetchProcessos()
   }, [fetchProcessos])
 
-  // Handle stage change
+  // Handle stage change - check if modal is needed
   const handleStageChange = async (processId: string, newStage: string) => {
+    const processo = processos.find(p => p.id === processId)
+    if (!processo) return
+
+    const currentStage = processo.etapa || KANBAN_CONFIG.DEFAULT_STAGE
+    
+    // First, check if this transition is allowed without violations
     try {
-      // Call API to update stage
+      const checkResponse = await fetch(`/api/processo-importacao/update-stage?processId=${processId}`)
+      
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json()
+        
+        // Find if the new stage is allowed
+        const targetStageInfo = checkData.canTransitionTo?.find((s: any) => s.stage === newStage)
+        
+        console.log('🔍 Stage transition check:', {
+          targetStage: newStage,
+          allowed: targetStageInfo?.allowed,
+          violations: checkData.violations,
+          attachedDocuments: checkData.attachedDocuments
+        })
+        
+        // If transition is allowed, do direct update without modal
+        if (targetStageInfo?.allowed) {
+          const updateResponse = await fetch('/api/processo-importacao/update-stage', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              processId,
+              newStage,
+              forceUpdate: false,
+              reason: 'Mudança automática - transição permitida',
+              notes: ''
+            })
+          })
+
+          if (updateResponse.ok) {
+            const updateData = await updateResponse.json()
+            
+            // Update local state
+            setProcessos(prev => prev.map(p => 
+              p.id === processId ? { ...p, etapa: newStage } : p
+            ))
+
+            // Show success message
+            toast.success(`Etapa atualizada: ${updateData.oldStage} → ${updateData.newStage}`)
+            
+            // Refresh data
+            fetchProcessos()
+            return
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking stage transition:', error)
+    }
+
+    // If we reach here, open modal for stage change with the target stage
+    setStageChangeModal({
+      isOpen: true,
+      processId,
+      currentStage,
+      processNumber: processo.numeroProcesso,
+      targetStage: newStage // Add the target stage that user dragged to
+    })
+  }
+
+  // Handle confirmed stage change from modal
+  const handleConfirmStageChange = async (
+    newStage: string, 
+    forceUpdate: boolean, 
+    reason: string, 
+    notes: string
+  ) => {
+    try {
+      // Call API to update stage with all parameters
       const response = await fetch('/api/processo-importacao/update-stage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          processId,
-          newStage
+          processId: stageChangeModal.processId,
+          newStage,
+          forceUpdate,
+          reason,
+          notes
         })
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        throw new Error('Failed to update stage')
+        // Show specific error message
+        if (data.violations && data.violations.length > 0) {
+          const violationMessages = data.violations.map((v: any) => v.message).join('\n')
+          toast.error(`Mudança bloqueada:\n${violationMessages}`)
+        } else {
+          toast.error(data.message || 'Erro ao atualizar etapa')
+        }
+        throw new Error(data.message || 'Failed to update stage')
       }
 
       // Update local state
       setProcessos(prev => prev.map(p => 
-        p.id === processId ? { ...p, etapa: newStage } : p
+        p.id === stageChangeModal.processId ? { ...p, etapa: newStage } : p
       ))
+
+      // Show success with details
+      toast.success(`Etapa atualizada: ${data.oldStage} → ${data.newStage}`)
+
+      // Close modal
+      setStageChangeModal({
+        isOpen: false,
+        processId: '',
+        currentStage: '',
+        processNumber: '',
+        targetStage: undefined
+      })
+
+      // Refresh data to get latest state
+      fetchProcessos()
     } catch (error) {
       console.error('Error updating stage:', error)
-      throw error // Re-throw to be handled by KanbanBoard
+      // Error toast already shown above
     }
   }
 
@@ -150,8 +268,8 @@ export default function KanbanPage() {
       </div>
 
       {/* Kanban Board */}
-      <Card>
-        <CardContent className="p-6">
+      <Card className="border-0 shadow-none bg-transparent">
+        <CardContent className="p-0">
           <KanbanBoard
             processos={processos}
             onProcessoClick={handleProcessoClick}
@@ -175,6 +293,23 @@ export default function KanbanPage() {
         onDocumentClick={(doc) => {
           console.log('Document clicked:', doc)
         }}
+      />
+
+      {/* Stage Change Modal */}
+      <StageChangeModal
+        isOpen={stageChangeModal.isOpen}
+        onClose={() => setStageChangeModal({
+          isOpen: false,
+          processId: '',
+          currentStage: '',
+          processNumber: '',
+          targetStage: undefined
+        })}
+        onConfirm={handleConfirmStageChange}
+        processId={stageChangeModal.processId}
+        currentStage={stageChangeModal.currentStage}
+        processNumber={stageChangeModal.processNumber}
+        targetStage={stageChangeModal.targetStage}
       />
     </div>
   )

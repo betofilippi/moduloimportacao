@@ -60,6 +60,10 @@ export const NOCODB_TABLES = {
     PROCESSING_LOGS: "tbl_processing_logs", // OCR processing history
   },
 
+  LOGS: {
+    ETAPA_AUDIT: "mwqsdo806jgeyey",
+  },
+
 
 
   PROCESSOS_IMPORTACAO: "mny50szv4gbt195",
@@ -71,6 +75,15 @@ export const NOCODB_TABLES = {
  * Maps document fields to NocoDB column names
  */
 export const TABLE_FIELD_MAPPINGS = {
+
+  LOGS_IMPORTACAO: {
+    hash_arquivo_origem: "hash_arquivo_origem",
+    numero_processo: "numero_processo",
+    responsavel: "responsavel",
+    ultima_etapa: "ultima_etapa", 
+    nova_etapa: "nova_etapa",
+    descricao_regra: "descricao_regra",
+  },
 
   PROCESSOS_IMPORTACAO:{
   numero_processo: "numero_processo",
@@ -646,8 +659,8 @@ export const KANBAN_CONFIG = {
       description: 'Processos recém criados aguardando início'
     },
     {
-      id: 'em_transporte',
-      title: 'Em Transporte',
+      id: 'em_transporte_internacional',
+      title: 'Em Transporte Internacional',
       color: 'bg-yellow-500',
       description: 'Mercadoria em trânsito internacional'
     },
@@ -683,7 +696,7 @@ export const KANBAN_CONFIG = {
   // Legacy stage mappings (for backward compatibility)
   STAGE_MAPPINGS: {
     'Solicitado': 'solicitado',
-    'Em Transporte': 'em_transporte',
+    'Em Transporte Internacional': 'em_transporte_internacional',
     'Processamento Nacional': 'processamento_nacional',
     'Em Transporte Local': 'em_transporte_local',
     'Recebido': 'recebido',
@@ -692,8 +705,8 @@ export const KANBAN_CONFIG = {
   
   // Allowed transitions (optional - for future use)
   TRANSITIONS: {
-    'solicitado': ['em_transporte'],
-    'em_transporte': ['processamento_nacional'],
+    'solicitado': ['em_transporte_internacional'],
+    'em_transporte_internacional': ['processamento_nacional'],
     'processamento_nacional': ['em_transporte_local'],
     'em_transporte_local': ['recebido'],
     'recebido': ['auditado'],

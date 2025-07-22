@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ProcessoImportacao } from '@/types/processo-importacao';
-import { Calendar, User, FileText, Package, GripVertical, AlertCircle, FileWarning } from 'lucide-react';
+import { Calendar, User, FileText, Package, GripVertical, AlertCircle, FileWarning, ChevronRight, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { KANBAN_CONFIG } from '@/config/nocodb-tables';
 
 // Document type colors
 const documentTypeColors: Record<string, string> = {
@@ -17,25 +18,49 @@ const documentTypeColors: Record<string, string> = {
   di: 'bg-red-500',
   numerario: 'bg-yellow-500',
   nota_fiscal: 'bg-pink-500',
+  bl: 'bg-cyan-500',
+  contrato_cambio: 'bg-indigo-500',
   unknown: 'bg-gray-400'
 };
 
 // Document type short labels
 const documentTypeShortLabels: Record<string, string> = {
   proforma_invoice: 'PI',
-  commercial_invoice: 'COMMERCIAL',
+  commercial_invoice: 'CI',
   packing_list: 'PL',
   swift: 'SW',
   di: 'DI',
   numerario: 'NUM',
   nota_fiscal: 'NF',
+  bl: 'BL',
+  contrato_cambio: 'CC',
   unknown: '?'
 };
+
+interface ProcessData {
+  etapa?: string;
+  stageInfo?: {
+    id: string;
+    title: string;
+    color: string;
+    description: string;
+  };
+}
+
+interface BusinessRules {
+  violations: Array<{
+    ruleId: string;
+    severity: 'error' | 'warning' | 'info';
+    message: string;
+  }>;
+  suggestedStage?: string;
+}
 
 interface ProcessoImportacaoCardProps {
   processo: ProcessoImportacao;
   onClick?: () => void;
   onConnectDocument?: (processId: string) => void;
+  onChangeStage?: (processId: string, currentStage: string) => void;
   className?: string;
   variant?: 'default' | 'compact';
   showGrip?: boolean;
@@ -45,6 +70,7 @@ export function ProcessoImportacaoCard({
   processo, 
   onClick,
   onConnectDocument,
+  onChangeStage,
   className,
   variant = 'default',
   showGrip = false
@@ -56,6 +82,8 @@ export function ProcessoImportacaoCard({
     missingTypes?: string[];
     missingDocumentsCount?: number;
   }>({ total: 0, types: [], byType: {} });
+  const [processData, setProcessData] = useState<ProcessData>({});
+  const [businessRules, setBusinessRules] = useState<BusinessRules>({ violations: [] });
   const [loading, setLoading] = useState(false);
   const loadedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -110,6 +138,22 @@ export function ProcessoImportacaoCard({
             missingTypes: data.documents.missingTypes,
             missingDocumentsCount: data.alerts.missingDocumentsCount
           });
+          
+          // Set process stage data
+          if (data.process) {
+            setProcessData({
+              etapa: data.process.etapa,
+              stageInfo: data.process.stageInfo
+            });
+          }
+          
+          // Set business rules data
+          if (data.businessRules) {
+            setBusinessRules({
+              violations: data.businessRules.violations || [],
+              suggestedStage: data.businessRules.suggestedStage
+            });
+          }
         }
       }
     } catch (error) {
@@ -152,6 +196,9 @@ export function ProcessoImportacaoCard({
     }
   };
 
+  const hasErrors = businessRules.violations.some(v => v.severity === 'error');
+  const hasWarnings = businessRules.violations.some(v => v.severity === 'warning');
+
   return (
     <Card 
       className={cn(
@@ -173,6 +220,11 @@ export function ProcessoImportacaoCard({
               )}>
                 <FileText className="h-4 w-4" />
                 {processo.numeroProcesso}
+                {processo.invoiceNumber && (
+                  <span className="text-sm text-muted-foreground">
+                    ({processo.invoiceNumber})
+                  </span>
+                )}
               </CardTitle>
               {variant !== 'compact' && (
                 <CardDescription className="line-clamp-2">
@@ -181,12 +233,28 @@ export function ProcessoImportacaoCard({
               )}
             </div>
           </div>
-          <Badge className={cn(
-            getStatusColor(processo.status),
-            variant === 'compact' && 'text-xs'
-          )}>
-            {getStatusLabel(processo.status)}
-          </Badge>
+          <div className="flex flex-col items-end gap-2">
+            <Badge className={cn(
+              getStatusColor(processo.status),
+              variant === 'compact' && 'text-xs'
+            )}>
+              {getStatusLabel(processo.status)}
+            </Badge>
+            
+            {/* Stage Badge */}
+            {processData.stageInfo && (
+              <Badge 
+                className={cn(
+                  'text-white',
+                  processData.stageInfo.color,
+                  variant === 'compact' && 'text-xs'
+                )}
+              >
+                <Layers className="h-3 w-3 mr-1" />
+                {processData.stageInfo.title}
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -201,6 +269,28 @@ export function ProcessoImportacaoCard({
             <span>{new Date(processo.dataInicio).toLocaleDateString('pt-BR')}</span>
           </div>
         </div>
+
+        {/* Business Rules Alerts */}
+        {(hasErrors || hasWarnings) && (
+          <div className="space-y-2">
+            {hasErrors && (
+              <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 p-2 rounded-md">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span className="text-xs">
+                  {businessRules.violations.filter(v => v.severity === 'error').length} violação(ões) crítica(s)
+                </span>
+              </div>
+            )}
+            {hasWarnings && (
+              <div className="flex items-start gap-2 text-sm text-yellow-600 bg-yellow-50 p-2 rounded-md">
+                <FileWarning className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span className="text-xs">
+                  {businessRules.violations.filter(v => v.severity === 'warning').length} alerta(s)
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Document Count and Type Badges */}
         <div className="space-y-3">
@@ -218,6 +308,21 @@ export function ProcessoImportacaoCard({
                 )}
               </span>
             </div>
+            
+            {/* Change Stage Button */}
+            {onChangeStage && processData.etapa && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-auto p-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChangeStage(processo.id, processData.etapa || 'solicitado');
+                }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
           {/* Document Type Badges */}
@@ -252,6 +357,19 @@ export function ProcessoImportacaoCard({
             </div>
           )}
         </div>
+
+        {/* Suggested Stage */}
+        {businessRules.suggestedStage && 
+         businessRules.suggestedStage !== processData.etapa && 
+         !loading && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground">
+              Etapa sugerida: <span className="font-medium">
+                {KANBAN_CONFIG.STAGES.find(s => s.id === businessRules.suggestedStage)?.title || businessRules.suggestedStage}
+              </span>
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
