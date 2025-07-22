@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProcessoImportacaoList } from "@/components/processo_import/ProcessoImportacaoList"
 import { KanbanBoard } from "@/components/processo_import/KanbanBoard"
 import { ProcessoImportacaoModal } from "@/components/processo_import/ProcessoImportacaoModal"
+import { ProcessoDetailsEnhancedModal } from "@/components/processo_import/ProcessoDetailsEnhancedModal"
 import { NovoProcessoModal } from "@/components/processo_import/NovoProcessoModal"
 import { UnknownDocumentModal } from "@/components/processo_import/UnknownDocumentModal"
 import { ProcessoImportacao, DocumentPipelineStatus } from "@/types/processo-importacao"
@@ -22,7 +23,9 @@ export default function ProcessosPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [processos, setProcessos] = useState<ProcessoImportacao[]>([])
   const [selectedProcesso, setSelectedProcesso] = useState<ProcessoImportacao | null>(null)
+  const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
+  const [isEnhancedDetailsModalOpen, setIsEnhancedDetailsModalOpen] = useState(false)
   const [isNewProcessModalOpen, setIsNewProcessModalOpen] = useState(false)
   const [isUnknownDocumentModalOpen, setIsUnknownDocumentModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -149,7 +152,14 @@ export default function ProcessosPage() {
   // Handle processo click
   const handleProcessoClick = (processo: ProcessoImportacao) => {
     setSelectedProcesso(processo)
-    setIsDetailsModalOpen(true)
+    setSelectedProcessId(processo.id)
+    setIsEnhancedDetailsModalOpen(true)
+  }
+  
+  // Handle connect document
+  const handleConnectDocument = (processId: string) => {
+    setIsUnknownDocumentModalOpen(true)
+    // You can pass the processId to the modal if needed
   }
 
   // Handle new processo creation
@@ -361,6 +371,7 @@ export default function ProcessosPage() {
               <ProcessoImportacaoList
                 processos={filteredProcessos}
                 onProcessoClick={handleProcessoClick}
+                onConnectDocument={handleConnectDocument}
                 loading={isLoading}
               />
             </CardContent>
@@ -414,7 +425,15 @@ export default function ProcessosPage() {
         </CardContent>
       </Card>
 
-      {/* Details Modal */}
+      {/* Enhanced Details Modal */}
+      <ProcessoDetailsEnhancedModal
+        isOpen={isEnhancedDetailsModalOpen}
+        onClose={() => setIsEnhancedDetailsModalOpen(false)}
+        processId={selectedProcessId || ''}
+        onDocumentConnect={handleConnectDocument}
+      />
+      
+      {/* Legacy Details Modal (for backward compatibility) */}
       <ProcessoImportacaoModal
         processo={selectedProcesso}
         open={isDetailsModalOpen}

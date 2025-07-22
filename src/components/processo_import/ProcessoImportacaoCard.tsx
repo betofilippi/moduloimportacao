@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ProcessoImportacao } from '@/types/processo-importacao';
-import { Calendar, User, FileText, Package, GripVertical } from 'lucide-react';
+import { Calendar, User, FileText, Package, GripVertical, AlertCircle, FileWarning } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Document type colors
@@ -34,6 +35,7 @@ const documentTypeShortLabels: Record<string, string> = {
 interface ProcessoImportacaoCardProps {
   processo: ProcessoImportacao;
   onClick?: () => void;
+  onConnectDocument?: (processId: string) => void;
   className?: string;
   variant?: 'default' | 'compact';
   showGrip?: boolean;
@@ -42,6 +44,7 @@ interface ProcessoImportacaoCardProps {
 export function ProcessoImportacaoCard({ 
   processo, 
   onClick,
+  onConnectDocument,
   className,
   variant = 'default',
   showGrip = false
@@ -50,6 +53,8 @@ export function ProcessoImportacaoCard({
     total: number;
     types: string[];
     byType: Record<string, number>;
+    missingTypes?: string[];
+    missingDocumentsCount?: number;
   }>({ total: 0, types: [], byType: {} });
   const [loading, setLoading] = useState(false);
   const loadedRef = useRef(false);
@@ -101,7 +106,9 @@ export function ProcessoImportacaoCard({
           setDocumentData({
             total: data.documents.total,
             types: data.documents.types,
-            byType: data.documents.byType
+            byType: data.documents.byType,
+            missingTypes: data.documents.missingTypes,
+            missingDocumentsCount: data.alerts.missingDocumentsCount
           });
         }
       }

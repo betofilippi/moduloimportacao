@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 interface ProcessoImportacaoListProps {
   processos: ProcessoImportacao[];
   onProcessoClick: (processo: ProcessoImportacao) => void;
+  onConnectDocument?: (processId: string) => void;
   loading?: boolean;
   className?: string;
 }
@@ -16,6 +17,7 @@ interface ProcessoImportacaoListProps {
 export function ProcessoImportacaoList  ({
   processos,
   onProcessoClick,
+  onConnectDocument,
   loading = false,
   className,
 }: ProcessoImportacaoListProps) {
@@ -66,6 +68,7 @@ export function ProcessoImportacaoList  ({
           key={processo.id}
           processo={processo}
           onClick={() => onProcessoClick(processo)}
+          onConnectDocument={onConnectDocument}
         />
       ))}
     </div>
