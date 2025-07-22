@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/supabase-server';
 import { documentTypeMapping } from '@/services/documents/unknown/prompts';
+import { OCRUploadService, OCRExtractionService } from '@/services/ocr/internal';
+import { DocumentType } from '@/services/documents/base/types';
 
 /**
  * STEP 1: Upload and identify document type
@@ -36,64 +38,37 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Step 1: Upload file with type 'unknown'
+      // Step 1: Upload file with type 'unknown' using internal service
       console.log('📤 [IDENTIFY] Uploading file to storage...');
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      uploadFormData.append('documentType', 'unknown');
       
-      const uploadResponse = await fetch(
-        new URL('/api/ocr/upload', request.url).toString(),
+      const uploadResult = await OCRUploadService.uploadFile(
+        file,
+        DocumentType.UNKNOWN,
         {
-          method: 'POST',
-          headers: {
-            'Cookie': request.headers.get('cookie') || ''
-          },
-          body: uploadFormData
+          userId: session.user.id,
+          userEmail: session.user.email
         }
       );
 
-      if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        console.log('❌ [IDENTIFY] Upload failed:', errorData);
-        throw new Error(errorData.error || 'Failed to upload file');
-      }
-
-      const uploadResult = await uploadResponse.json();
       console.log('✅ [IDENTIFY] Upload successful:', {
         storagePath: uploadResult.data.storagePath,
         fileHash: uploadResult.data.fileHash,
         fromCache: uploadResult.fromCache || false
       });
 
-      // Step 2: Extract with identification prompt
+      // Step 2: Extract with identification prompt using internal service
       console.log('🔍 [IDENTIFY] Running OCR with identification prompt...');
-      const extractData = {
-        storagePath: uploadResult.data.storagePath,
-        fileType: '.pdf',
-        documentType: 'unknown',
-        fileHash: uploadResult.data.fileHash
-      };
-
-      const extractResponse = await fetch(
-        new URL('/api/ocr/extract-claude-multi', request.url).toString(),
+      
+      const extractResult = await OCRExtractionService.extractData(
+        uploadResult.data.storagePath,
+        '.pdf',
+        'unknown',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cookie': request.headers.get('cookie') || ''
-          },
-          body: JSON.stringify(extractData)
+          userId: session.user.id,
+          fileHash: uploadResult.data.fileHash
         }
       );
 
-      if (!extractResponse.ok) {
-        const errorData = await extractResponse.json();
-        console.log('❌ [IDENTIFY] OCR extraction failed:', errorData);
-        throw new Error(errorData.error || 'Failed to extract text');
-      }
-
-      const extractResult = await extractResponse.json();
       console.log('✅ [IDENTIFY] OCR extraction successful');
 
       // Parse identification result

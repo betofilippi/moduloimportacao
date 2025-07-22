@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/supabase-server';
+import { OCRExtractionService } from '@/services/ocr/internal';
 
 /**
  * Check status of async document processing
@@ -33,42 +34,36 @@ export async function GET(request: NextRequest) {
     console.log('🔍 [PROCESS STATUS] Checking status for:', { requestId });
 
     try {
-      // Call OCR status endpoint
-      const statusResponse = await fetch(
-        new URL(`/api/ocr/extract-claude-multi/status?requestId=${requestId}`, request.url).toString(),
-        {
-          method: 'GET',
-          headers: {
-            'Cookie': request.headers.get('cookie') || ''
-          }
-        }
-      );
-
-      if (!statusResponse.ok) {
-        const errorData = await statusResponse.json();
-        console.log('❌ [PROCESS STATUS] OCR status check failed:', errorData);
-        return NextResponse.json(errorData, { status: statusResponse.status });
+      // Check status using internal service
+      const statusResult = await OCRExtractionService.checkStatus(requestId);
+      
+      if (statusResult.status === 'not_found') {
+        console.log('❌ [PROCESS STATUS] Request not found');
+        return NextResponse.json(
+          { status: 'not_found', message: 'No active request found' },
+          { status: 404 }
+        );
       }
-
-      const statusResult = await statusResponse.json();
       
       // Check if processing is complete
-      if (statusResult.status === 'completed' && statusResult.data) {
+      if (statusResult.status === 'completed' && statusResult.result) {
         console.log('✅ [PROCESS STATUS] Processing completed');
         
+        const data = statusResult.result;
+        
         // Extract document type and structured data
-        const documentType = statusResult.data.metadata?.documentType || statusResult.data.documentType;
+        const documentType = data.metadata?.documentType || data.documentType;
         let structuredData;
         
-        if (statusResult.data.structuredResult) {
-          structuredData = statusResult.data.structuredResult;
+        if (data.structuredResult) {
+          structuredData = data.structuredResult;
           console.log('📊 [PROCESS STATUS] Using structured result from multi-step extraction');
-        } else if (statusResult.data.extractedData) {
-          structuredData = statusResult.data.extractedData;
+        } else if (data.extractedData) {
+          structuredData = data.extractedData;
           console.log('📊 [PROCESS STATUS] Using extracted data');
         } else {
           console.log('⚠️ [PROCESS STATUS] No structured data found, using raw text');
-          structuredData = { rawText: statusResult.data.rawText || '' };
+          structuredData = { rawText: data.rawText || '' };
         }
 
         // Prepare complete response similar to synchronous processing
@@ -78,12 +73,12 @@ export async function GET(request: NextRequest) {
           documentType,
           extractedData: structuredData,
           metadata: {
-            storagePath: statusResult.data.metadata?.storagePath,
-            fileHash: statusResult.data.metadata?.fileHash,
-            originalFileName: statusResult.data.metadata?.originalFileName,
-            processingTime: statusResult.data.metadata?.processingTime,
-            tokenUsage: statusResult.data.metadata?.tokenUsage,
-            multiStep: statusResult.data.metadata?.multiPrompt || false
+            storagePath: data.metadata?.storagePath,
+            fileHash: data.metadata?.fileHash,
+            originalFileName: data.metadata?.originalFileName,
+            processingTime: data.metadata?.processingTime,
+            tokenUsage: data.metadata?.tokenUsage,
+            multiStep: data.metadata?.multiPrompt || false
           },
           readyToSave: true,
           message: `Documento ${documentType} processado com sucesso`
@@ -91,22 +86,32 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(response);
       }
+      
+      // Return failed status
+      if (statusResult.status === 'failed') {
+        console.log('❌ [PROCESS STATUS] Processing failed:', statusResult.error);
+        return NextResponse.json(
+          { 
+            success: false,
+            status: 'failed',
+            error: statusResult.error || 'Unknown processing error'
+          },
+          { status: 500 }
+        );
+      }
 
-      // Return current status if not completed
+      // Return current status if still processing
       console.log('⏳ [PROCESS STATUS] Processing in progress:', {
         status: statusResult.status,
-        progress: statusResult.progress,
-        currentStep: statusResult.currentStep
+        elapsedTime: statusResult.elapsedTime
       });
 
       return NextResponse.json({
         success: true,
         status: statusResult.status,
-        progress: statusResult.progress || 0,
-        currentStep: statusResult.currentStep,
-        currentStepName: statusResult.currentStepName,
-        estimatedTimeRemaining: statusResult.estimatedTimeRemaining,
-        message: statusResult.message || 'Processamento em andamento...'
+        progress: Math.min(90, Math.floor((statusResult.elapsedTime || 0) / 1000)), // Estimate progress based on elapsed time
+        estimatedTimeRemaining: statusResult.elapsedTime ? Math.max(5, 120 - Math.floor((statusResult.elapsedTime || 0) / 1000)) : 120,
+        message: 'Processamento em andamento...'
       });
 
     } catch (statusError) {

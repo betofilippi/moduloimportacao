@@ -178,7 +178,11 @@ function validateDocumentData(documentType: string, data: any): string[] {
       
     case DocumentType.SWIFT:
       // Swift can have direct fields or header.data structure
-      if (!data.swift_code && !data.header?.data?.swift_code) errors.push('Missing SWIFT code');
+      // Check for message_type (new format) or swift_code (legacy)
+      if (!data.swift_code && !data.header?.data?.swift_code && 
+          !data.message_type && !data.header?.data?.message_type) {
+        errors.push('Missing SWIFT message type or code');
+      }
       break;
       
     case DocumentType.DI:
@@ -242,9 +246,13 @@ function getKeyFields(documentType: string, data: any): Record<string, any> {
     
     case DocumentType.SWIFT:
       return {
-        swiftCode: data.swift_code || data.header?.data?.swift_code,
+        swiftCode: data.swift_code || data.header?.data?.swift_code || 
+                   data.message_type || data.header?.data?.message_type,
+        messageType: data.message_type || data.header?.data?.message_type,
         amount: data.amount || data.header?.data?.amount,
-        currency: data.currency || data.header?.data?.currency
+        currency: data.currency || data.header?.data?.currency,
+        sendersReference: data.senders_reference || data.header?.data?.senders_reference,
+        transactionReference: data.transaction_reference || data.header?.data?.transaction_reference
       };
     
     case DocumentType.DI:
